@@ -167,6 +167,8 @@ class Game
         @player = @_createBeing(Player, freeCells)
         @pedro = @_createBeing(Pedro, freeCells)
 
+        new Level()
+
         lightPasses = (x, y) =>
             not not @map[x+","+y]# == '·'
 

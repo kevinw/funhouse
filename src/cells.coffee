@@ -1,0 +1,3 @@
+window.cells =
+    floor:
+        char: '·'
