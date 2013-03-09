@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "file": "level.js",
+  "sourceRoot": "",
+  "sources": [
+    "level.coffee"
+  ],
+  "names": [],
+  "mappings": ";;AAAA;CAAA,IAAA,CAAA;CAAA;CAAA,CAAM;CACH;CAAc,EAAA,CAAA,WAAA;CACT,CAAA,CAAS,CAAR,CAAD,CAAA;CAAA,CAAA,CACY,CAAX,EAAD,EAAA;CAFL,IAAc;;CAAd;;CADH;CAAA"
+}
