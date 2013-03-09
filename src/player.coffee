@@ -36,16 +36,24 @@ for keyName, action of controls
 
 
 class Player extends Entity
+    constructor: ->
+        super
+
+        @light = {
+            color: [200, 200, 200]
+        }
+
+    toString: -> '<Player>'
+
+    color: '#ff0'
+    char: '@'
+
     act: ->
-        @game._drawWholeMap()
-        @game.engine.lock()
+        @level.lock()
         window.addEventListener('keydown', this)
 
     handleEvent: (e) ->
         code = e.keyCode
-        if code == 13 or code == 32
-            @_checkBox()
-            return
 
         # one of numpad directions?
         return if not (code of keyMap)
@@ -57,30 +65,47 @@ class Player extends Entity
         newX = @_x + dir[0]
         newY = @_y + dir[1]
         newKey = newX + "," + newY
-        return if not (newKey of @game.map)
+        return if not (newKey of @level.cells)
 
         #Game.display.draw(@_x, @_y, Game.map[@_x+","+@_y])
-        @_x = newX
-        @_y = newY
+        @level.moveEntity(this, newX, newY)
         #@_draw()
 
         window.removeEventListener("keydown", this)
-        @game.engine.unlock()
+        @level.unlock()
 
     _draw: -> {
         character: '@'
         color: "#ff0"
     }
 
-    _checkBox: ->
-        key = @_x + "," + @_y
-        if @game.map[key] != "☃"
-            alert("There is no box here!")
-        else if key == @game.ananas
-            alert("Hooray! You found an ananas and won this game.")
-            @game.engine.lock()
-            window.removeEventListener("keydown", this)
-        else
-            alert("This box is empty :-(")
-
 window.Player = Player
+
+class Pedro extends Entity
+    act: ->
+        x = @game.player.getX()
+        y = @game.player.getY()
+
+        passableCallback = (x, y) => (x + "," + y of @game.map)
+
+        astar = new ROT.Path.AStar(x, y, passableCallback, {topology:4})
+
+        path = []
+
+        pathCallback = (x, y) -> path.push([x, y])
+
+        astar.compute(@_x, @_y, pathCallback)
+
+        path.shift()
+        if path.length == 1
+            @game.engine.lock()
+            alert("Game over - you were captured by Pedro!")
+        else
+            @_x = path[0][0]
+            @_y = path[0][1]
+        
+    _draw: -> {
+        character: "P"
+        color: "red"
+    }
+

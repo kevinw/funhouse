@@ -12,13 +12,32 @@ COORDS = (key) ->
     return [x, y]
 
 class Level
-    constructor: ->
+    constructor: (@game) ->
         @cells = {}
         @cellsByName = {}
         @entities = {}
         @generate()
 
         @ambientLight = [0, 0, 0]
+
+        @display = new ROT.Display {
+            fontFamily: "Monaco" # TODO: load font
+            fontSize: 22
+            spacing: 1.1
+        }
+
+    findFreeCell: (type='floor') ->
+        cellList = @cellsByName[type]
+        assert(cellList.length)
+        while true
+            # TODO: bust out of this loop
+            key = cellList.random()
+            assert(@cells[key] == cells[type])
+            if not @entities[key]?.length
+                return COORDS(key)
+
+    lock: -> @game.lock()
+    unlock: -> @game.unlock()
 
     setCell: (x, y, type) ->
         cell = cells[type]
@@ -47,11 +66,15 @@ class Level
         @fov = new ROT.FOV.PreciseShadowcasting(lightPasses, {topology: 4})
 
     calcLightData: ->
+        reflectivity = (x, y) => 
+            @cells[KEY(x, y)]?.reflectivity or 0
+
         lighting = new ROT.Lighting(reflectivity, {range: 12, passes: 2})
+        lighting.setFOV(@fov)
 
         for key, entityList of @entities
             for entity in entityList
-                lightInfo = entity.getLightInfo()
+                lightInfo = entity.light
                 if lightInfo
                     lighting.setLight(entity.getX(), entity.getY(), lightInfo.color)
 
@@ -60,6 +83,31 @@ class Level
             lightData[KEY(x, y)] = color
 
         return lightData
+
+    moveEntity: (entity, x, y) ->
+        @removeEntity(entity, entity.getX(), entity.getY())
+        entity.setPosition(x, y)
+        @addEntity(entity, x, y)
+
+    removeEntity: (entity, x, y) ->
+        entityList = @entities[KEY(x, y)]
+        assert(entityList)
+        found = undefined
+        for e, i in entityList
+            if e == entity
+                found = entityList.splice(i, 1)
+                assert(found[0] == e and e == entity)
+                break
+
+        assert (found)
+
+    addEntity: (entity, x, y) ->
+        key = KEY(x, y)
+        entityList = @entities[key]
+        if not entityList?
+            entityList = @entities[key] = []
+
+        entityList.push(entity)
 
     draw: ->
         lightData = @calcLightData()
@@ -79,10 +127,19 @@ class Level
             entityList = @entities[key]
             if entityList?.length
                 topEntity = entityList[entityList.length-1]
-                character = topEntity.char()
+                character = topEntity.char
+                assert(character, "entity doesn't define .char")
+                entityColor = topEntity.color
+                if entityColor?
+                    if typeof(entityColor) == 'string'
+                        entityColor = ROT.Color.fromString(entityColor)
+
+                    finalColor = ROT.Color.multiply(finalColor, entityColor)
             else
                 character = cell.char
 
             @display.draw(x, y, character, ROT.Color.toRGB(finalColor), null)
+
+        undefined
 
 window.Level = Level
