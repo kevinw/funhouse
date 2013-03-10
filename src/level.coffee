@@ -92,15 +92,26 @@ class Level
                 if val == 0
                     @setCell(x, y, 'floor')
         else
-            for y in [3..10]
-                for x in [3..15]
+
+            [startx, endx] = [7, 23]
+            [starty, endy] = [3, 13]
+
+            WALLS_MIRRORED = true
+
+            for y in [starty..endy]
+                for x in [startx..endx]
                     @setCell(x, y, 'floor')
 
-            for y in [3..10]
-                @setCell(16, y, 'leftmirror')
+            if WALLS_MIRRORED
+                for y in [starty..endy]
+                    @setCell(endx+1, y, 'leftmirror')
+                    @setCell(startx-1, y, 'rightmirror')
+                    undefined
 
-            for x in [3..15]
-                @setCell(x, 11, 'upmirror')
+                for x in [startx..endx]
+                    @setCell(x, endy+1, 'upmirror')
+                    @setCell(x, starty-1, 'downmirror')
+                    undefined
 
         @recalcFov()
 
@@ -195,25 +206,53 @@ class Level
 
             @display.draw(x, y, character, ROT.Color.toRGB(finalColor), null)
 
+        #
         # render mirrors
+        #
+        maxwidth = @display._options.width
+        maxheight = @display._options.height
 
-        for mirrorType, {dx, dy} in mirrors
-            for key in @cellsByName[mirrorType]
+        for mirrorType, delta of mirrors
+            cellList = @cellsByName[mirrorType] or []
+            for key in cellList
                 [mirrorx, mirrory] = COORDS(key)
+
+                xDelta = delta.dx
+                yDelta = delta.dy
+                rayXDelta = xDelta
+                rayYDelta = yDelta
 
                 dx = 0
                 dy = 0
+                rayX = 0
+                rayY = 0
         
                 while true
                     dx += xDelta
                     dy += yDelta
+                    rayX += rayXDelta
+                    rayY += rayYDelta
+
+                    [drawx, drawy] = [mirrorx + dx, mirrory + dy]
+                    if drawx >= maxwidth or drawy >= maxheight or drawx < 0 or drawy < 0
+                        break
                 
-                    args = @display._data[(mirrorx - dx)+','+(mirrory - dy)]
+                    cellX = mirrorx - rayX
+                    cellY = mirrory - rayY
+                    if not @cells[cellX + ',' + cellY]
+                        break
+
+                    args = @display._data[cellX + ',' + cellY]
                     if not args?
                         break
 
                     [x, y, ch, fg, bg] = args
-                    @display.draw(mirrorx + dx, mirrory + dy, ch, fg, bg)
+                    @display.draw(drawx, drawy, ch, fg, bg)
+
+                    if ch == cells.leftmirror.char or ch == cells.rightmirror.char
+                        rayXDelta = -rayXDelta
+                    if ch == cells.upmirror.char or ch == cells.downmirror.char
+                        rayYDelta = -rayYDelta
 
         undefined
 

@@ -8,9 +8,13 @@ cells =
     plywood:
         char: '#'
 
+    rightmirror:
+        char: '|'
     leftmirror:
         char: '|'
     upmirror:
+        char: '-'
+    downmirror:
         char: '-'
 
 for cellName, cell of cells
