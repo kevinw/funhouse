@@ -1,14 +1,45 @@
 <!doctype html>
 <html>
     <head>
-        <title>cowpoker</title>
+        <title>funhouse</title>
         <script src="lib/rot.js/rot.js"></script>
-    </head>
-    <body>
+
+        <style>
+            body {
+                background: black;
+                color: white;
+                font-size: 12px;
+                font-family: Monaco;
+            }
+            #wrapper {
+               width: 1000px;
+            }
+            #status {
+            }
+            #legend {
+                width: 250px;
+                float: left;
+            }
+            #game {
+                width: 750px;
+                float: left;
+            }
+        </style>
+        
         <script src="src/util.js" charset="UTF-8"></script>
         <script src="src/cells.js" charset="UTF-8"></script>
         <script src="src/player.js" charset="UTF-8"></script>
         <script src="src/level.js" charset="UTF-8"></script>
         <script src="src/game.js" charset="UTF-8"></script>
+    </head>
+    <body onload="new Game()">
+        <div id="wrapper">
+            <div id="legend">
+            </div>
+            <div id="game">
+                <div id="status"></div>
+                <div id="display"></div>
+            </div>
+        </div>
     </body>
 </html>

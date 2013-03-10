@@ -11,7 +11,9 @@ class Game
 
     constructor: ->
         @level = new Level(this)
-        document.body.appendChild(@level.display.getContainer())
+
+        displayNode = @level.display.getContainer()
+        document.getElementById('display').appendChild(displayNode)
 
         [x, y] = @level.findFreeCell('floor')
         @player = new Player(@level, x, y)
@@ -20,11 +22,32 @@ class Game
         @engine.addActor(@player)
         @engine.start()
 
+        @addStatus('You enter the funhouse.')
+        @addStatus('The exit slams shut behind you.')
+        @addStatus('Good luck!')
+
+    addStatus: (msg) ->
+        status = document.getElementById('status')
+
+        div = document.createElement('div')
+        div.appendChild(document.createTextNode(msg))
+
+        status.appendChild(div)
+        while status.childNodes.length > 3
+            status.removeChild(status.childNodes[0])
+
+    updateLegend: ->
+        legend = document.getElementById('legend')
+        while legend.childNodes.length
+            legend.removeChild(legend.childNodes[0])
+        legend.appendChild(document.createTextNode('@: You'))
+
     lock: ->
         @level.draw()
+        @updateLegend()
         @engine.lock()
 
     unlock: ->
         @engine.unlock()
-        
-new Game()
+
+window.Game = Game

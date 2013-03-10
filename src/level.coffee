@@ -1,17 +1,39 @@
 KEY = (x, y) ->
-    assert(typeof(x) == 'number')
-    assert(typeof(y) == 'number')
     return x + ',' + y
 
 COORDS = (key) ->
-    assert(typeof(key) == 'string')
     parts = key.split(",")
-    assert(parts.length == 2)
     x = parseInt(parts[0])
     y = parseInt(parts[1])
     return [x, y]
 
+
+mirrors =
+    leftmirror:
+        dx: 1
+        dy: 0
+    rightmirror:
+        dx: -1
+        dy: 0
+    upmirror:
+        dx: 0
+        dy: 1
+    downmirror:
+        dx: 0
+        dy: -1
+
 class Level
+    canMoveTo: (x, y) ->
+        key = KEY(x, y)
+        cell = @cells[KEY(x, y)]
+        if not cell?
+            return false
+
+        if cell.blocksMovement == false
+            return true
+
+        return false
+
     constructor: (@game) ->
         @cells = {}
         @cellsByName = {}
@@ -22,7 +44,7 @@ class Level
 
         @display = new ROT.Display {
             fontFamily: "Monaco" # TODO: load font
-            fontSize: 22
+            fontSize: 18
             spacing: 1.1
         }
 
@@ -39,10 +61,22 @@ class Level
     lock: -> @game.lock()
     unlock: -> @game.unlock()
 
+    addStatus: (statusMessage) ->
+        @game.addStatus(statusMessage)
+
     setCell: (x, y, type) ->
         cell = cells[type]
-        assert (cell)
-        key = KEY(x, y)
+        assert(cell, "unknown cell type '%s'".format(type.toString()))
+        key = x+','+y
+
+        oldCell = @cells[key]
+        if oldCell?
+            cellList = @cellsByName[oldCell.name]
+            i = cellList.indexOf(key)
+            if i != -1 then cellList.splice(i, 1)
+
+        if @cells[key]? then
+
 
         @cells[key] = cell
 
@@ -52,22 +86,37 @@ class Level
         cellList.push(key)
 
     generate: ->
-        digger = new ROT.Map.Digger()
-        digger.create (x, y, val) =>
-            if val == 0
-                @setCell(x, y, 'floor')
+        if false
+            digger = new ROT.Map.Digger()
+            digger.create (x, y, val) =>
+                if val == 0
+                    @setCell(x, y, 'floor')
+        else
+            for y in [3..10]
+                for x in [3..15]
+                    @setCell(x, y, 'floor')
+
+            for y in [3..10]
+                @setCell(16, y, 'leftmirror')
+
+            for x in [3..15]
+                @setCell(x, 11, 'upmirror')
 
         @recalcFov()
 
+        for i in [0..9]
+            [x, y] = @findFreeCell()
+            new Food(this, x, y)
+
     recalcFov: ->
         lightPasses = (x, y) =>
-            @cells[KEY(x, y)]?.lightPasses
+            @cells[x+','+y]?.lightPasses
 
         @fov = new ROT.FOV.PreciseShadowcasting(lightPasses, {topology: 4})
 
     calcLightData: ->
         reflectivity = (x, y) => 
-            @cells[KEY(x, y)]?.reflectivity or 0
+            @cells[x+','+y]?.reflectivity or 0
 
         lighting = new ROT.Lighting(reflectivity, {range: 12, passes: 2})
         lighting.setFOV(@fov)
@@ -80,16 +129,22 @@ class Level
 
         lightData = {}
         lighting.compute (x, y, color) ->
-            lightData[KEY(x, y)] = color
+            lightData[x+','+y] = color
 
         return lightData
 
     moveEntity: (entity, x, y) ->
-        @removeEntity(entity, entity.getX(), entity.getY())
+        @removeEntity(entity)
         entity.setPosition(x, y)
+
+        for otherEntity in (@entities[KEY(x, y)] or [])
+            otherEntity.bump(entity)
+
         @addEntity(entity, x, y)
 
-    removeEntity: (entity, x, y) ->
+    removeEntity: (entity) ->
+        x = entity.getX()
+        y = entity.getY()
         entityList = @entities[KEY(x, y)]
         assert(entityList)
         found = undefined
@@ -139,6 +194,26 @@ class Level
                 character = cell.char
 
             @display.draw(x, y, character, ROT.Color.toRGB(finalColor), null)
+
+        # render mirrors
+
+        for mirrorType, {dx, dy} in mirrors
+            for key in @cellsByName[mirrorType]
+                [mirrorx, mirrory] = COORDS(key)
+
+                dx = 0
+                dy = 0
+        
+                while true
+                    dx += xDelta
+                    dy += yDelta
+                
+                    args = @display._data[(mirrorx - dx)+','+(mirrory - dy)]
+                    if not args?
+                        break
+
+                    [x, y, ch, fg, bg] = args
+                    @display.draw(mirrorx + dx, mirrory + dy, ch, fg, bg)
 
         undefined
 

@@ -34,10 +34,27 @@ for keyName, action of controls
 
     keyMap[ROT[key]] = rot_dirs[action]
 
+class Item extends Entity
+
+class Food extends Item
+    char: '%'
+    color: 'red'
+
+    bump: (entity) ->
+        entity?.eatFood(this)
+
+window.Food = Food
 
 class Player extends Entity
+    eatFood: (food) ->
+        @numFoods += 1
+        @level.removeEntity(food)
+        @level.addStatus('You ate a food.')
+
     constructor: ->
         super
+
+        @numFoods = 0
 
         @light = {
             color: [200, 200, 200]
@@ -64,8 +81,7 @@ class Player extends Entity
         dir = ROT.DIRS[8][keyMap[code]]
         newX = @_x + dir[0]
         newY = @_y + dir[1]
-        newKey = newX + "," + newY
-        return if not (newKey of @level.cells)
+        return if not @level.canMoveTo(newX, newY)
 
         #Game.display.draw(@_x, @_y, Game.map[@_x+","+@_y])
         @level.moveEntity(this, newX, newY)
