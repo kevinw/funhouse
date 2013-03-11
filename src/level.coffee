@@ -42,25 +42,41 @@ class Level
 
         return all
 
-    constructor: (@game) ->
+    constructor: (@game, opts) ->
+        opts ?= {}
         @cells = {}
         @cellsByName = {}
         @entities = {}
-        @generate()
 
-        @ambientLight = [0, 0, 0]
+        console.time('generating floor')
+        @generate(opts)
+        console.timeEnd('generating floor')
+
+        @ambientLight = [200, 200, 200]
 
         @display = @game.display
 
     switchLevel: (delta) ->
         @game.switchLevel(delta)
 
-    findFreeCell: (type='floor') ->
+    findFreeCell: ({type, room} = {}) ->
+        type ?= 'floor'
+
+        assert(typeof(type) == 'string')
+
         cellList = @cellsByName[type]
         assert(cellList.length)
+        roomRect = if room? then Rect.fromRoom(room)
+
         while true
             # TODO: bust out of this loop
             key = cellList.random()
+
+            if roomRect?
+                [x, y] = COORDS(key)
+                if not roomRect.containsXY(x, y)
+                    continue
+
             assert(@cells[key] == cells[type])
             if not @entities[key]?.length
                 return COORDS(key)
@@ -82,9 +98,6 @@ class Level
             i = cellList.indexOf(key)
             if i != -1 then cellList.splice(i, 1)
 
-        if @cells[key]? then
-
-
         @cells[key] = cell
 
         cellList = @cellsByName[type]
@@ -92,10 +105,10 @@ class Level
 
         cellList.push(key)
 
-    generate: ->
+    generate: (opts) ->
         if true
-            width = 20#ROT.DEFAULT_WIDTH
-            height = 20#ROT.DEFAULT_HEIGHT
+            width = ROT.DEFAULT_WIDTH
+            height = ROT.DEFAULT_HEIGHT
             digger = new ROT.Map.Digger(width, height)
             digger.create (x, y, val) =>
                 if val == 0
@@ -110,9 +123,26 @@ class Level
                                 @setCell(x, y, 'plywood')
                                 break
             
-            # place stairs
-            [x, y] = @findFreeCell()
-            new Stairs(this, x, y)
+
+            # place down stairs
+            exitRoom = digger._rooms.random()
+            exitRoomRect = Rect.fromRoom(exitRoom)
+            [x, y] = @findFreeCell({room: exitRoom})
+            @downStairs = new DownStairs(this, x, y)
+
+            # place up stairs in a room kind of far away
+            otherRooms = (r for r in digger._rooms if r != exitRoom)
+            otherRooms.sort (r1, r2) ->
+                a = Point.distance(Rect.fromRoom(r1).center(), exitRoomRect.center())
+                b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
+                return if a >= b then -1 else 1
+
+            [x, y] = @findFreeCell({room: otherRooms[0]})
+
+            if not opts.noUpStairs
+                @upStairs = new UpStairs(this, x, y)
+            else
+                @upStairsPosition = [x, y]
 
         else
             [startx, endx] = [7, 23]
@@ -140,6 +170,12 @@ class Level
         for i in [0..9]
             [x, y] = @findFreeCell()
             new Food(this, x, y)
+
+    entryPosition: (delta) ->
+        if delta > 0
+            @upStairs?.position() or @upStairsPosition
+        else
+            @downStairs.position()
 
     recalcFov: ->
         lightPasses = (x, y) =>

@@ -52,7 +52,9 @@ class Game
         document.getElementById('display').appendChild(displayNode)
 
         @engine = new ROT.Engine()
-        @switchLevel(1)
+        @levelDepth = 0
+        @levels = {}
+        @switchLevel(1, {noUpStairs: true})
         @engine.start()
 
         @statusMessages = new StatusMessages(document.getElementById('status'))
@@ -61,9 +63,16 @@ class Game
         @addStatus('The exit slams shut behind you.')
         @addStatus('Good luck!')
 
-    switchLevel: (delta) ->
-        @level = new Level(this)
-        [x, y] = @level.findFreeCell('floor')
+    switchLevel: (delta, opts) ->
+        @levelDepth += delta
+        @level = @levels[@levelDepth]
+
+        if not @level?
+            @level = new Level(this, opts)
+            @levels[@levelDepth] = @level
+
+        [x, y] = @level.entryPosition(delta)
+
         if not @player?
             @player = new Player(@level, x, y)
         else

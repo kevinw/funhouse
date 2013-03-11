@@ -37,7 +37,6 @@ for keyName, action of controls
 class Entity
     constructor: (@level, @_x, @_y) ->
         assert(@level)
-        console.log("ADDING", this, @_x, @_y)
         @level.addEntity(this, @_x, @_y)
 
     moveToLevel: (newLevel, x, y) ->
@@ -52,6 +51,7 @@ class Entity
 
     getX: -> @_x
     getY: -> @_y
+    position: -> [@_x, @_y]
 
     bump: ->
 
@@ -74,12 +74,21 @@ class Food extends Item
 window.Food = Food
 
 class Stairs extends Entity
-    char: '>'
     color: 'yellow'
     afterBump: (entity) ->
         entity?.climbStairs(this)
 
+class DownStairs extends Stairs
+    char: '>'
+    delta: 1
+
+class UpStairs extends Stairs
+    char: '<'
+    delta: -1
+
 window.Stairs = Stairs
+window.DownStairs = DownStairs
+window.UpStairs = UpStairs
 
 class Player extends Entity
     eatFood: (food) ->
@@ -90,8 +99,11 @@ class Player extends Entity
     climbStairs: (stairs) ->
         entities = @level.allEntities()
         assert (entities.indexOf(this) != -1)
-        @level.switchLevel(1)
-        @level.addStatus('You descend the stairs.')
+        @level.switchLevel(stairs.delta)
+        if stairs.delta == 1
+            @level.addStatus('You tiptoe down the stairs. They creak anyways.')
+        else
+            @level.addStatus('You climb the stairs.')
 
     constructor: ->
         super
@@ -142,6 +154,9 @@ class Player extends Entity
     }
 
 window.Player = Player
+
+class Monster extends Entity
+    char: "&"
 
 class Pedro extends Entity
     act: ->
