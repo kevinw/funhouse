@@ -1,5 +1,37 @@
 ambientLight = [0, 0, 0]
 
+fades = [
+    [66, 66, 66],
+    [128, 128, 128],
+    [255, 255, 255],
+]
+
+class StatusMessages
+    limit: 3
+
+    constructor: (@node) ->
+        @messages = []
+
+    addStatus: (msg) ->
+        @messages.push
+            text: msg
+            color: [255, 255, 255]
+
+        div = document.createElement('div')
+        div.appendChild(document.createTextNode(msg))
+
+        # remove older statuses
+        @node.appendChild(div)
+        while @node.childNodes.length > @limit
+            @node.removeChild(@node.childNodes[0])
+
+        visibleMessages = @messages.slice(-@limit)
+
+        # fade status messages as they go into the past
+        for node, i in @node.childNodes
+            color = ROT.Color.multiply(visibleMessages[i].color, fades[i])
+            node.setAttribute('style', 'color: %s;'.format(ROT.Color.toRGB(color)))
+
 class Game
     display: null
     map: {}
@@ -22,19 +54,14 @@ class Game
         @engine.addActor(@player)
         @engine.start()
 
+        @statusMessages = new StatusMessages(document.getElementById('status'))
+
         @addStatus('You enter the funhouse.')
         @addStatus('The exit slams shut behind you.')
         @addStatus('Good luck!')
 
     addStatus: (msg) ->
-        status = document.getElementById('status')
-
-        div = document.createElement('div')
-        div.appendChild(document.createTextNode(msg))
-
-        status.appendChild(div)
-        while status.childNodes.length > 3
-            status.removeChild(status.childNodes[0])
+        @statusMessages.addStatus(msg)
 
     updateLegend: ->
         legend = document.getElementById('legend')

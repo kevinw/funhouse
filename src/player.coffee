@@ -81,14 +81,18 @@ class Player extends Entity
         dir = ROT.DIRS[8][keyMap[code]]
         newX = @_x + dir[0]
         newY = @_y + dir[1]
-        return if not @level.canMoveTo(newX, newY)
-
-        #Game.display.draw(@_x, @_y, Game.map[@_x+","+@_y])
-        @level.moveEntity(this, newX, newY)
-        #@_draw()
+        @tryMoveTo(newX, newY)
 
         window.removeEventListener("keydown", this)
         @level.unlock()
+
+    tryMoveTo: (x, y) ->
+        moveInfo = @level.canMoveTo(x, y)
+        if not moveInfo.canMove
+            if moveInfo.bump?
+                @level.addStatus(moveInfo.bump)
+        else
+            @level.moveEntity(this, x, y)
 
     _draw: -> {
         character: '@'

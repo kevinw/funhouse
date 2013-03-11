@@ -30,9 +30,10 @@ class Level
             return false
 
         if cell.blocksMovement == false
-            return true
+            return {canMove: true}
 
-        return false
+        bump = getBumpMessage(cell)
+        return {canMove: false, bump: bump}
 
     constructor: (@game) ->
         @cells = {}
@@ -86,13 +87,23 @@ class Level
         cellList.push(key)
 
     generate: ->
-        if false
-            digger = new ROT.Map.Digger()
+        if true
+            width = ROT.DEFAULT_WIDTH
+            height = ROT.DEFAULT_HEIGHT
+            digger = new ROT.Map.Digger(width, height)
             digger.create (x, y, val) =>
                 if val == 0
                     @setCell(x, y, 'floor')
-        else
 
+            # place walls
+            for y in [0..height]
+                for x in [0..width]
+                    if not @cells[x+','+y]?
+                        for [dx, dy] in ROT.DIRS['8']
+                            if @cells[(x+dx)+','+(y+dy)] == cells.floor
+                                @setCell(x, y, 'plywood')
+                                break
+        else
             [startx, endx] = [7, 23]
             [starty, endy] = [3, 13]
 
@@ -237,12 +248,11 @@ class Level
                     if drawx >= maxwidth or drawy >= maxheight or drawx < 0 or drawy < 0
                         break
                 
-                    cellX = mirrorx - rayX
-                    cellY = mirrory - rayY
-                    if not @cells[cellX + ',' + cellY]
+                    cellKey = (mirrorx - rayX) + ',' + (mirrory - rayY)
+                    if not @cells[cellKey]
                         break
 
-                    args = @display._data[cellX + ',' + cellY]
+                    args = @display._data[cellKey]
                     if not args?
                         break
 
