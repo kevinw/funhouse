@@ -35,6 +35,13 @@ class Level
         bump = getBumpMessage(cell)
         return {canMove: false, bump: bump}
 
+    allEntities: ->
+        all = []
+        for key, entityList of @entities
+            all = all.concat(entityList)
+
+        return all
+
     constructor: (@game) ->
         @cells = {}
         @cellsByName = {}
@@ -43,11 +50,10 @@ class Level
 
         @ambientLight = [0, 0, 0]
 
-        @display = new ROT.Display {
-            fontFamily: "Monaco" # TODO: load font
-            fontSize: 18
-            spacing: 1.1
-        }
+        @display = @game.display
+
+    switchLevel: (delta) ->
+        @game.switchLevel(delta)
 
     findFreeCell: (type='floor') ->
         cellList = @cellsByName[type]
@@ -88,8 +94,8 @@ class Level
 
     generate: ->
         if true
-            width = ROT.DEFAULT_WIDTH
-            height = ROT.DEFAULT_HEIGHT
+            width = 20#ROT.DEFAULT_WIDTH
+            height = 20#ROT.DEFAULT_HEIGHT
             digger = new ROT.Map.Digger(width, height)
             digger.create (x, y, val) =>
                 if val == 0
@@ -103,6 +109,11 @@ class Level
                             if @cells[(x+dx)+','+(y+dy)] == cells.floor
                                 @setCell(x, y, 'plywood')
                                 break
+            
+            # place stairs
+            [x, y] = @findFreeCell()
+            new Stairs(this, x, y)
+
         else
             [startx, endx] = [7, 23]
             [starty, endy] = [3, 13]
@@ -156,13 +167,18 @@ class Level
         return lightData
 
     moveEntity: (entity, x, y) ->
+        otherEntities = (@entities[KEY(x, y)] or []).slice()
+        for a in otherEntities
+            a.bump(entity)
+
         @removeEntity(entity)
         entity.setPosition(x, y)
-
-        for otherEntity in (@entities[KEY(x, y)] or [])
-            otherEntity.bump(entity)
-
         @addEntity(entity, x, y)
+
+        otherEntities = (@entities[KEY(x, y)] or []).slice()
+        for b in otherEntities
+            if b != entity
+                b.afterBump(entity)
 
     removeEntity: (entity) ->
         x = entity.getX()

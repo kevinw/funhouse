@@ -34,6 +34,34 @@ for keyName, action of controls
 
     keyMap[ROT[key]] = rot_dirs[action]
 
+class Entity
+    constructor: (@level, @_x, @_y) ->
+        assert(@level)
+        console.log("ADDING", this, @_x, @_y)
+        @level.addEntity(this, @_x, @_y)
+
+    moveToLevel: (newLevel, x, y) ->
+        assert(newLevel != @level)
+        @level.removeEntity(this)
+        @level = newLevel
+        @_x = x
+        @_y = y
+        @level.addEntity(this, x, y)
+
+    getSpeed: -> 100
+
+    getX: -> @_x
+    getY: -> @_y
+
+    bump: ->
+
+    afterBump: ->
+
+    setPosition: (x, y) ->
+        @_x = x
+        @_y = y
+
+window.Entity = Entity
 class Item extends Entity
 
 class Food extends Item
@@ -45,11 +73,25 @@ class Food extends Item
 
 window.Food = Food
 
+class Stairs extends Entity
+    char: '>'
+    color: 'yellow'
+    afterBump: (entity) ->
+        entity?.climbStairs(this)
+
+window.Stairs = Stairs
+
 class Player extends Entity
     eatFood: (food) ->
         @numFoods += 1
         @level.removeEntity(food)
         @level.addStatus('You ate a food.')
+
+    climbStairs: (stairs) ->
+        entities = @level.allEntities()
+        assert (entities.indexOf(this) != -1)
+        @level.switchLevel(1)
+        @level.addStatus('You descend the stairs.')
 
     constructor: ->
         super

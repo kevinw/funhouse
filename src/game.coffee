@@ -42,16 +42,17 @@ class Game
     actors: []
 
     constructor: ->
-        @level = new Level(this)
+        @display = new ROT.Display {
+            fontFamily: "Monaco" # TODO: load font
+            fontSize: 18
+            spacing: 1.1
+        }
 
-        displayNode = @level.display.getContainer()
+        displayNode = @display.getContainer()
         document.getElementById('display').appendChild(displayNode)
 
-        [x, y] = @level.findFreeCell('floor')
-        @player = new Player(@level, x, y)
-
         @engine = new ROT.Engine()
-        @engine.addActor(@player)
+        @switchLevel(1)
         @engine.start()
 
         @statusMessages = new StatusMessages(document.getElementById('status'))
@@ -59,6 +60,18 @@ class Game
         @addStatus('You enter the funhouse.')
         @addStatus('The exit slams shut behind you.')
         @addStatus('Good luck!')
+
+    switchLevel: (delta) ->
+        @level = new Level(this)
+        [x, y] = @level.findFreeCell('floor')
+        if not @player?
+            @player = new Player(@level, x, y)
+        else
+            @player.moveToLevel(@level, x, y)
+
+        @engine.clear()
+        @display.clear()
+        @engine.addActor(@player)
 
     addStatus: (msg) ->
         @statusMessages.addStatus(msg)
