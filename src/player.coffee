@@ -1,3 +1,5 @@
+'use strict'
+
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
@@ -22,6 +24,12 @@ controls = {
     u: 'up_right'
     b: 'down_left'
     n: 'down_right'
+
+    # wasd
+    w: 'up'
+    a: 'left'
+    s: 'down'
+    d: 'right'
 }
 
 keyMap = {}
@@ -69,14 +77,14 @@ class Food extends Item
     color: 'red'
 
     bump: (entity) ->
-        entity?.eatFood(this)
+        entity.eatFood?(this)
 
 window.Food = Food
 
 class Stairs extends Entity
     color: 'yellow'
     afterBump: (entity) ->
-        entity?.climbStairs(this)
+        entity.climbStairs?(this)
 
 class DownStairs extends Stairs
     char: '>'
@@ -91,6 +99,9 @@ window.DownStairs = DownStairs
 window.UpStairs = UpStairs
 
 class Player extends Entity
+    seesMirrors: true
+    group: 'players'
+
     eatFood: (food) ->
         @numFoods += 1
         @level.removeEntity(food)
@@ -157,6 +168,33 @@ window.Player = Player
 
 class Monster extends Entity
     char: "&"
+    sightRadius: 5
+
+    act: ->
+        for entity in @visibleEntities()
+            if entity.group == 'players'
+                @follow(entity)
+
+    follow: (entity) ->
+        passableCallback = (x, y) =>
+            @level.canMoveTo(x, y).canMove
+
+        astar = new ROT.Path.AStar(entity.getX(), entity.getY(), passableCallback, {topology: 8})
+
+        path = []
+        astar.compute(@_x, @_y, (x, y) -> path.push([x, y]))
+        path.shift()
+        if path.length
+            @level.moveEntity(this, path[0][0], path[0][1])
+
+    visibleEntities: ->
+        @fov ?= @level.createFOV()
+        vis = []
+        @fov.compute(@_x, @_y, @sightRadius, (x, y, r, visible) =>
+            vis = vis.concat(@level.entitiesAtCell(x, y)) if visible)
+        vis
+
+window.Monster = Monster
 
 class Pedro extends Entity
     act: ->

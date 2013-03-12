@@ -1,3 +1,6 @@
+LIGHT_TOPOLOGY = 8
+RENDER_MIRRORS = true
+
 KEY = (x, y) ->
     return x + ',' + y
 
@@ -6,7 +9,6 @@ COORDS = (key) ->
     x = parseInt(parts[0])
     y = parseInt(parts[1])
     return [x, y]
-
 
 mirrors =
     leftmirror:
@@ -23,6 +25,28 @@ mirrors =
         dy: -1
 
 class Level
+    constructor: (@game, opts) ->
+        opts ?= {}
+
+        @addActor = opts.addActor
+        @removeActor = opts.removeActor
+
+        @cells = {}
+        @bgs = {}
+        @fgs = {}
+
+        @cellsByName = {}
+        @entities = {}
+        @mirrorSeers = []
+
+        console.time('generating floor')
+        @generate(opts)
+        console.timeEnd('generating floor')
+
+        @ambientLight = [0, 0, 0]
+
+        @display = @game.display
+
     canMoveTo: (x, y) ->
         key = KEY(x, y)
         cell = @cells[KEY(x, y)]
@@ -42,19 +66,8 @@ class Level
 
         return all
 
-    constructor: (@game, opts) ->
-        opts ?= {}
-        @cells = {}
-        @cellsByName = {}
-        @entities = {}
-
-        console.time('generating floor')
-        @generate(opts)
-        console.timeEnd('generating floor')
-
-        @ambientLight = [200, 200, 200]
-
-        @display = @game.display
+    entitiesAtCell: (x, y) ->
+        return (@entities[KEY(x, y)] or []).slice()
 
     switchLevel: (delta) ->
         @game.switchLevel(delta)
@@ -94,11 +107,16 @@ class Level
 
         oldCell = @cells[key]
         if oldCell?
+            delete @fgs[key]
+            delete @bgs[key]
             cellList = @cellsByName[oldCell.name]
             i = cellList.indexOf(key)
             if i != -1 then cellList.splice(i, 1)
 
         @cells[key] = cell
+
+        if cell.bg? then @bgs[key] = cell.bg.random()
+        if cell.fg? then @fgs[key] = cell.fg.random()
 
         cellList = @cellsByName[type]
         if not cellList then cellList = @cellsByName[type] = []
@@ -107,7 +125,7 @@ class Level
 
     generate: (opts) ->
         if true
-            width = ROT.DEFAULT_WIDTH
+            width = 60#ROT.DEFAULT_WIDTH
             height = ROT.DEFAULT_HEIGHT
             digger = new ROT.Map.Digger(width, height)
             digger.create (x, y, val) =>
@@ -118,11 +136,15 @@ class Level
             for y in [0..height]
                 for x in [0..width]
                     if not @cells[x+','+y]?
-                        for [dx, dy] in ROT.DIRS['8']
-                            if @cells[(x+dx)+','+(y+dy)] == cells.floor
-                                @setCell(x, y, 'plywood')
-                                break
-            
+                        left = @cells[(x-1)+','+y]
+                        right = @cells[(x+1)+'.'+y]
+                        if false and @cells[x+','+(y+1)] == cells.floor and (not left or left == cells.downmirror) and (not right or right == cells.downmirror)
+                            @setCell(x, y, 'downmirror')
+                        else
+                            for [dx, dy] in ROT.DIRS['8']
+                                if @cells[(x+dx)+','+(y+dy)] == cells.floor
+                                    @setCell(x, y, 'plywood')
+                                    break
 
             # place down stairs
             exitRoom = digger._rooms.random()
@@ -137,12 +159,19 @@ class Level
                 b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
                 return if a >= b then -1 else 1
 
-            [x, y] = @findFreeCell({room: otherRooms[0]})
+            entranceRoom = otherRooms[0] or exitRoom
+            [x, y] = @findFreeCell({room: entranceRoom})
 
             if not opts.noUpStairs
                 @upStairs = new UpStairs(this, x, y)
             else
                 @upStairsPosition = [x, y]
+
+            # place down monsters
+            if false
+                for i in [0..4]
+                    [x, y] = @findFreeCell()
+                    new Monster(this, x, y)
 
         else
             [startx, endx] = [7, 23]
@@ -177,11 +206,14 @@ class Level
         else
             @downStairs.position()
 
-    recalcFov: ->
-        lightPasses = (x, y) =>
-            @cells[x+','+y]?.lightPasses
+    _lightPasses: (x, y) ->
+        @cells[x+','+y]?.lightPasses
 
-        @fov = new ROT.FOV.PreciseShadowcasting(lightPasses, {topology: 4})
+    createFOV: ->
+        new ROT.FOV.DiscreteShadowcasting(((x, y) => @_lightPasses(x, y)), {topology: LIGHT_TOPOLOGY})
+
+    recalcFov: ->
+        @fov = new ROT.FOV.PreciseShadowcasting(((x, y) => @_lightPasses(x, y)), {topology: LIGHT_TOPOLOGY})
 
     calcLightData: ->
         reflectivity = (x, y) => 
@@ -203,20 +235,22 @@ class Level
         return lightData
 
     moveEntity: (entity, x, y) ->
-        otherEntities = (@entities[KEY(x, y)] or []).slice()
+        otherEntities = @entitiesAtCell(x, y)
         for a in otherEntities
             a.bump(entity)
 
-        @removeEntity(entity)
+        @removeEntity(entity, {removeActor: false})
         entity.setPosition(x, y)
-        @addEntity(entity, x, y)
+        @addEntity(entity, x, y, {addActor: false})
 
-        otherEntities = (@entities[KEY(x, y)] or []).slice()
+        otherEntities = @entitiesAtCell(x, y)
         for b in otherEntities
             if b != entity
                 b.afterBump(entity)
 
-    removeEntity: (entity) ->
+    removeEntity: (entity, opts) ->
+        opts ?= {}
+
         x = entity.getX()
         y = entity.getY()
         entityList = @entities[KEY(x, y)]
@@ -230,7 +264,13 @@ class Level
 
         assert (found)
 
-    addEntity: (entity, x, y) ->
+        if opts.removeActor != false and entity.act
+            @removeActor(entity)
+
+            i = @mirrorSeers.indexOf(entity)
+            if i != -1 then @mirrorSeers.splice(i, 1)
+
+    addEntity: (entity, x, y, opts={}) ->
         key = KEY(x, y)
         entityList = @entities[key]
         if not entityList?
@@ -238,22 +278,38 @@ class Level
 
         entityList.push(entity)
 
+        if opts.addActor != false and entity.act
+            @addActor(entity)
+            if entity.seesMirrors then @mirrorSeers.push(entity)
+
+    wakeUpActors: ->
+        for entity in @allEntities()
+            if entity.act
+                @addActor(entity)
+
     draw: ->
+        @display.clear()
         lightData = @calcLightData()
+
+        add = ROT.Color.add
+        multiply = ROT.Color.multiply
+        baseColor = null
 
         for key, cell of @cells
             [x, y] = COORDS(key)
 
-            baseColor = if @cells[key] then [100, 100, 100] else [50, 50, 50]
+            baseColor = @fgs[key] or [255, 255, 255]
             light = @ambientLight
 
             dynamicLight = lightData[key]
-            if dynamicLight?
-                light = ROT.Color.add(light, dynamicLight)
+            if dynamicLight? then light = clampColor(add(light, dynamicLight))
 
-            finalColor = ROT.Color.multiply(baseColor, light)
+            finalColor = multiply(baseColor, light)
+            lightColor = finalColor
 
             entityList = @entities[key]
+
+            bg = null
             if entityList?.length
                 topEntity = entityList[entityList.length-1]
                 character = topEntity.char
@@ -263,11 +319,13 @@ class Level
                     if typeof(entityColor) == 'string'
                         entityColor = ROT.Color.fromString(entityColor)
 
-                    finalColor = ROT.Color.multiply(finalColor, entityColor)
+                    finalColor = multiply(finalColor, entityColor)
             else
                 character = cell.char
+                bg = @bgs[key] or null
+                if bg then bg = ROT.Color.toRGB(multiply(bg, light))
 
-            @display.draw(x, y, character, ROT.Color.toRGB(finalColor), null)
+            @display.draw(x, y, character, ROT.Color.toRGB(finalColor), bg or null)
 
         #
         # render mirrors
@@ -275,46 +333,61 @@ class Level
         maxwidth = @display._options.width
         maxheight = @display._options.height
 
-        for mirrorType, delta of mirrors
-            cellList = @cellsByName[mirrorType] or []
-            for key in cellList
-                [mirrorx, mirrory] = COORDS(key)
+        if RENDER_MIRRORS
+            for mirrorType, delta of mirrors
+                cellList = @cellsByName[mirrorType] or []
+                for key in cellList
+                    # skip mirror if not lit
+                    if not lightData[key] then continue
 
-                xDelta = delta.dx
-                yDelta = delta.dy
-                rayXDelta = xDelta
-                rayYDelta = yDelta
+                    [mirrorx, mirrory] = COORDS(key)
 
-                dx = 0
-                dy = 0
-                rayX = 0
-                rayY = 0
-        
-                while true
-                    dx += xDelta
-                    dy += yDelta
-                    rayX += rayXDelta
-                    rayY += rayYDelta
+                    xDelta = delta.dx
+                    yDelta = delta.dy
+                    rayXDelta = xDelta
+                    rayYDelta = yDelta
 
-                    [drawx, drawy] = [mirrorx + dx, mirrory + dy]
-                    if drawx >= maxwidth or drawy >= maxheight or drawx < 0 or drawy < 0
-                        break
-                
-                    cellKey = (mirrorx - rayX) + ',' + (mirrory - rayY)
-                    if not @cells[cellKey]
-                        break
+                    # skip mirror if player isn't beyond its plane
+                    planeBreak = false
+                    for e in @mirrorSeers
+                        if (xDelta and Math.sign(e.getX() - mirrorx) == xDelta) or
+                           (yDelta and Math.sign(e.getY() - mirrory) == yDelta)
+                            planeBreak = true
+                            break
+                    if planeBreak
+                        continue
 
-                    args = @display._data[cellKey]
-                    if not args?
-                        break
+                    dx = 0
+                    dy = 0
+                    rayX = 0
+                    rayY = 0
+            
+                    while true
+                        dx += xDelta
+                        dy += yDelta
+                        rayX += rayXDelta
+                        rayY += rayYDelta
 
-                    [x, y, ch, fg, bg] = args
-                    @display.draw(drawx, drawy, ch, fg, bg)
+                        [drawx, drawy] = [mirrorx + dx, mirrory + dy]
+                        if drawx >= maxwidth or drawy >= maxheight or drawx < 0 or drawy < 0
+                            break
+                    
+                        cellKey = (mirrorx - rayX) + ',' + (mirrory - rayY)
+                        if not @cells[cellKey] then break
 
-                    if ch == cells.leftmirror.char or ch == cells.rightmirror.char
-                        rayXDelta = -rayXDelta
-                    if ch == cells.upmirror.char or ch == cells.downmirror.char
-                        rayYDelta = -rayYDelta
+                        args = @display._data[cellKey]
+                        if not args? then break
+
+                        [x, y, ch, fg, bg] = args
+                        cell = @cells[x+','+y]
+                        @display.draw(drawx, drawy, ch, fg, bg)
+
+                        if (rayXDelta < 0 and cell == cells.rightmirror) or 
+                           (rayXDelta > 0 and cell == cells.leftmirror)
+                            rayXDelta = -rayXDelta
+                        if (rayYDelta < 0 and cell == cells.downmirror) or
+                           (rayYDelta > 0 and cell == cells.upmirror)
+                            rayYDelta = -rayYDelta
 
         undefined
 

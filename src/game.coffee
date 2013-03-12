@@ -1,5 +1,3 @@
-ambientLight = [0, 0, 0]
-
 fades = [
     [66, 66, 66],
     [128, 128, 128],
@@ -67,9 +65,18 @@ class Game
         @levelDepth += delta
         @level = @levels[@levelDepth]
 
+        @engine.clear()
+
+        needWakeup = false
         if not @level?
+            opts ?= {}
+            opts.addActor = (actor) => @engine.addActor(actor)
+            opts.removeActor = (actor) => @engine.removeActor(actor)
+
             @level = new Level(this, opts)
             @levels[@levelDepth] = @level
+        else
+            @level.wakeUpActors()
 
         [x, y] = @level.entryPosition(delta)
 
@@ -78,9 +85,7 @@ class Game
         else
             @player.moveToLevel(@level, x, y)
 
-        @engine.clear()
         @display.clear()
-        @engine.addActor(@player)
 
     addStatus: (msg) ->
         @statusMessages.addStatus(msg)

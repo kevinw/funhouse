@@ -47,3 +47,11 @@ class Rect
 
 window.Rect = Rect
 
+window.isRGB = (o) ->
+    return (o.length == 3 and 
+            typeof o[0] == 'number' and
+            typeof o[1] == 'number' and
+            typeof o[2] == 'number')
+
+window.clampColor = (c) ->
+    (ROT.Color._clamp(c[i]) for i in [0..2])
