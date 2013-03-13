@@ -45,6 +45,30 @@ for keyName, action of controls
 globalId = 1
 
 class Entity
+    damage: (opts) ->
+        entity = opts.from
+        amount = opts.amount
+
+        @level.addStatus('%s damaged %s.'.format(entity.statusDesc(), @statusDesc()))
+
+        @health.value = Math.max(0, @health.value - amount)
+        if @health.value == 0
+            @die()
+
+    die: ->
+        @level.removeEntity(this)
+
+    makeMeter: (name, opts) ->
+        if not opts.value?
+            opts.value = opts.max
+
+        @_meters ?= {}
+        @_meters[name] = opts
+        return opts
+
+    statusDesc: ->
+        this.legendDesc or this.constructor.name
+
     constructor: (@level, @_x, @_y) ->
         assert(@level)
 
@@ -95,10 +119,12 @@ class Stairs extends Entity
 class DownStairs extends Stairs
     char: '>'
     delta: 1
+    legendDesc: 'Stairs Down'
 
 class UpStairs extends Stairs
     char: '<'
     delta: -1
+    legendDesc: 'Stairs Up'
 
 window.Stairs = Stairs
 window.DownStairs = DownStairs
@@ -128,24 +154,6 @@ class Player extends Entity
         @health = @makeMeter('health', {max: 100})
         @breath = @makeMeter('breath', {max: 100})
         @imagination = @makeMeter('imagination', {max: 100})
-
-    makeMeter: (name, opts) ->
-        if not opts.value?
-            opts.value = opts.max
-
-        @_meters ?= {}
-        @_meters[name] = opts
-        return opts
-
-    damage: (opts) ->
-        entity = opts.from
-        amount = opts.amount
-
-        @level.addStatus('The monster scratched you.')
-
-        @health.value = Math.max(0, @health.value - amount)
-        if @health.value == 0
-            @die()
 
     die: ->
         @level.addStatus('You died.')
@@ -186,11 +194,21 @@ class Player extends Entity
         window.removeEventListener("keydown", this)
         @level.unlock()
 
+    melee: (entity) ->
+        #@level.addStatus('You smack the %s.'.format(entity.statusDesc()))
+        entity.damage
+            amount: 6
+            from: this
+
     tryMoveTo: (x, y) ->
         moveInfo = @level.canMoveTo(x, y)
         if not moveInfo.canMove
             if moveInfo.bump?
                 @level.addStatus(moveInfo.bump)
+        else if (entities = @level.hostilesAtCell(x, y)).length
+            for entity in entities
+                @melee(entity)
+                break
         else
             @level.moveEntity(this, x, y)
 
@@ -202,8 +220,16 @@ class Player extends Entity
 window.Player = Player
 
 class Monster extends Entity
+    hostile: true
     char: "&"
     sightRadius: 5
+
+    legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]
+
+    constructor: ->
+        super
+
+        @health = @makeMeter('health', {max: 20})
 
     attacks: {
         scratch: {
@@ -249,32 +275,3 @@ class Monster extends Entity
         vis
 
 window.Monster = Monster
-
-class Pedro extends Entity
-    act: ->
-        x = @game.player.getX()
-        y = @game.player.getY()
-
-        passableCallback = (x, y) => (x + "," + y of @game.map)
-
-        astar = new ROT.Path.AStar(x, y, passableCallback, {topology:4})
-
-        path = []
-
-        pathCallback = (x, y) -> path.push([x, y])
-
-        astar.compute(@_x, @_y, pathCallback)
-
-        path.shift()
-        if path.length == 1
-            @game.engine.lock()
-            alert("Game over - you were captured by Pedro!")
-        else
-            @_x = path[0][0]
-            @_y = path[0][1]
-        
-    _draw: -> {
-        character: "P"
-        color: "red"
-    }
-

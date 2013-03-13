@@ -69,6 +69,9 @@ class Level
     entitiesAtCell: (x, y) ->
         return (@entities[KEY(x, y)] or []).slice()
 
+    hostilesAtCell: (x, y) ->
+        return (e for e in @entitiesAtCell(x, y) when e.hostile)
+
     switchLevel: (delta) ->
         @game.switchLevel(delta)
 
