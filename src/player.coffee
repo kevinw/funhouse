@@ -42,9 +42,15 @@ for keyName, action of controls
 
     keyMap[ROT[key]] = rot_dirs[action]
 
+globalId = 1
+
 class Entity
     constructor: (@level, @_x, @_y) ->
         assert(@level)
+
+        @guid = globalId
+        globalId += 1
+
         @level.addEntity(this, @_x, @_y)
 
     moveToLevel: (newLevel, x, y) ->
@@ -101,6 +107,49 @@ window.UpStairs = UpStairs
 class Player extends Entity
     seesMirrors: true
     group: 'players'
+    toString: -> '<Player>'
+    color: '#ff0'
+    char: '@'
+
+    legendDesc: 'You'
+    legendProps: [{type: 'bar', meter: 'health', label: 'Self-esteem'},
+                  {type: 'bar', meter: 'breath', label: 'Breath', color: '#006633'},
+                  {type: 'bar', meter: 'imagination', label: 'Imagination', color: '#880055'}]
+
+    constructor: ->
+        super
+
+        @numFoods = 0
+
+        @light = {
+            color: [200, 200, 200]
+        }
+
+        @health = @makeMeter('health', {max: 100})
+        @breath = @makeMeter('breath', {max: 100})
+        @imagination = @makeMeter('imagination', {max: 100})
+
+    makeMeter: (name, opts) ->
+        if not opts.value?
+            opts.value = opts.max
+
+        @_meters ?= {}
+        @_meters[name] = opts
+        return opts
+
+    damage: (opts) ->
+        entity = opts.from
+        amount = opts.amount
+
+        @level.addStatus('The monster scratched you.')
+
+        @health.value = Math.max(0, @health.value - amount)
+        if @health.value == 0
+            @die()
+
+    die: ->
+        @level.addStatus('You died.')
+        @level.lock()
 
     eatFood: (food) ->
         @numFoods += 1
@@ -115,20 +164,6 @@ class Player extends Entity
             @level.addStatus('You tiptoe down the stairs. They creak anyways.')
         else
             @level.addStatus('You climb the stairs.')
-
-    constructor: ->
-        super
-
-        @numFoods = 0
-
-        @light = {
-            color: [200, 200, 200]
-        }
-
-    toString: -> '<Player>'
-
-    color: '#ff0'
-    char: '@'
 
     act: ->
         @level.lock()
@@ -170,16 +205,35 @@ class Monster extends Entity
     char: "&"
     sightRadius: 5
 
+    attacks: {
+        scratch: {
+            verb: 'scratches'
+            damage: 3
+        }
+    }
+
     act: ->
         for entity in @visibleEntities()
             if entity.group == 'players'
-                @follow(entity)
+                [@lastX, @lastY] = entity.position()
+                if Point.distance(entity.position(), @position()) == 1
+                    @attack(entity)
+                    return
 
-    follow: (entity) ->
+        if @lastX?
+            @headTowards(@lastX, @lastY)
+
+    attack: (entity) ->
+        if entity?.damage
+            entity.damage
+                amount: 3
+                from: this
+
+    headTowards: (x, y) ->
         passableCallback = (x, y) =>
             @level.canMoveTo(x, y).canMove
 
-        astar = new ROT.Path.AStar(entity.getX(), entity.getY(), passableCallback, {topology: 8})
+        astar = new ROT.Path.AStar(x, y, passableCallback, {topology: 8})
 
         path = []
         astar.compute(@_x, @_y, (x, y) -> path.push([x, y]))

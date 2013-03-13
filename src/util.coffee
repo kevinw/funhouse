@@ -55,3 +55,18 @@ window.isRGB = (o) ->
 
 window.clampColor = (c) ->
     (ROT.Color._clamp(c[i]) for i in [0..2])
+
+window.queryString = (key) ->
+    key = key.replace(/[*+?^$.\[\]{}()|\\\/]/g, "\\$&") # escape RegEx meta chars
+    match = location.search.match(new RegExp("[?&]"+key+"=([^&]+)(&|$)"));
+    return match and decodeURIComponent(match[1].replace(/\+/g, " "))
+
+window.queryInt = (key) ->
+    s = queryString(key)
+    if s?
+        n = parseInt(s, 10)
+        if not isNaN(n)
+            return n
+
+window.htmlEntities = (str) ->
+    String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')

@@ -40,6 +40,8 @@ class Game
     actors: []
 
     constructor: ->
+        setupRandom()
+
         @display = new ROT.Display {
             fontFamily: "Monaco" # TODO: load font
             fontSize: 18
@@ -53,13 +55,14 @@ class Game
         @levelDepth = 0
         @levels = {}
         @switchLevel(1, {noUpStairs: true})
-        @engine.start()
 
         @statusMessages = new StatusMessages(document.getElementById('status'))
 
         @addStatus('You enter the funhouse.')
         @addStatus('The exit slams shut behind you.')
         @addStatus('Good luck!')
+
+        @engine.start()
 
     switchLevel: (delta, opts) ->
         @levelDepth += delta
@@ -90,18 +93,23 @@ class Game
     addStatus: (msg) ->
         @statusMessages.addStatus(msg)
 
-    updateLegend: ->
+    updateLegend: (visibleEntities) ->
         legend = document.getElementById('legend')
-        while legend.childNodes.length
-            legend.removeChild(legend.childNodes[0])
-        legend.appendChild(document.createTextNode('@: You'))
+        updateLegendNodes(legend, visibleEntities)
 
     lock: ->
         @level.draw()
-        @updateLegend()
+        @updateLegend(@level.visibleEntities())
         @engine.lock()
 
     unlock: ->
         @engine.unlock()
 
 window.Game = Game
+
+setupRandom = ->
+    if (seed = queryInt('seed'))?
+        ROT.RNG.setSeed(seed)
+
+    url = "http://localhost/?seed=" + ROT.RNG.getSeed()
+    $("#debug").append($("<a>").attr('href', url).text(url))

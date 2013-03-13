@@ -160,6 +160,7 @@ class Level
                 return if a >= b then -1 else 1
 
             entranceRoom = otherRooms[0] or exitRoom
+            entranceRoomRect = Rect.fromRoom(entranceRoom)
             [x, y] = @findFreeCell({room: entranceRoom})
 
             if not opts.noUpStairs
@@ -168,10 +169,11 @@ class Level
                 @upStairsPosition = [x, y]
 
             # place down monsters
-            if false
-                for i in [0..4]
+            for i in [0..4]
+                [x, y] = @findFreeCell()
+                while entranceRoomRect.containsXY(x, y)
                     [x, y] = @findFreeCell()
-                    new Monster(this, x, y)
+                new Monster(this, x, y)
 
         else
             [startx, endx] = [7, 23]
@@ -234,6 +236,22 @@ class Level
 
         return lightData
 
+    calcVisible: ->
+        @visible = {}
+        @hasBeenVisible ?= {}
+        @_visibleEntities = []
+        for entity in @mirrorSeers
+            @fov.compute(entity.getX(), entity.getY(), 12, (x, y, radius, visibility) =>
+                key = x+','+y
+                @visible[x+','+y] = visibility
+                @hasBeenVisible[x+','+y] = true
+                for e in @entities[key] or []
+                    @_visibleEntities.push({entity: e, distance: radius})
+            )
+
+    
+    visibleEntities: -> @_visibleEntities or []
+
     moveEntity: (entity, x, y) ->
         otherEntities = @entitiesAtCell(x, y)
         for a in otherEntities
@@ -289,7 +307,9 @@ class Level
 
     draw: ->
         @display.clear()
+        @fog ?= {}
         lightData = @calcLightData()
+        @calcVisible()
 
         add = ROT.Color.add
         multiply = ROT.Color.multiply
@@ -299,7 +319,21 @@ class Level
             [x, y] = COORDS(key)
 
             baseColor = @fgs[key] or [255, 255, 255]
-            light = @ambientLight
+
+            light = lightData[key]
+
+            fog = @fog[key] or 0
+            if light
+                intensity = light[0]
+                if fog < intensity
+                    fog = Math.min(70, intensity)
+                    @fog[key] = fog
+
+            if not light or (light and fog >= (light[0] or 0))
+                light = [fog, fog, fog]
+
+            if not light?
+                light = @ambientLight
 
             dynamicLight = lightData[key]
             if dynamicLight? then light = clampColor(add(light, dynamicLight))
@@ -307,7 +341,7 @@ class Level
             finalColor = multiply(baseColor, light)
             lightColor = finalColor
 
-            entityList = @entities[key]
+            entityList = if @visible[key]? then @entities[key]
 
             bg = null
             if entityList?.length
@@ -338,7 +372,7 @@ class Level
                 cellList = @cellsByName[mirrorType] or []
                 for key in cellList
                     # skip mirror if not lit
-                    if not lightData[key] then continue
+                    if not @visible[key] then continue
 
                     [mirrorx, mirrory] = COORDS(key)
 
