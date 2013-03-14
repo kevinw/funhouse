@@ -16,17 +16,24 @@ props =
 
         classname = 'prop-' + name
         node = $(parentNode).children('.' + classname)
+        wasNew = false
         if not node.length
             node = $("<div>").addClass('progress').addClass(classname)
             bar = $("<div>").addClass('bar').appendTo(node)
             text = $("<div>").addClass('text').text(prop.label).appendTo(node)
+            wasNew = true
         else
             bar = node.children('.bar')
 
-        later = ->
-            if prop.color?
-                bar.css('background', prop.color)
+        if prop.color?
+            bar.css('background', prop.color)
+
+        later = -> # called after setTimeout so CSS animation takes effect
             bar.css('width', percentage + '%')
+
+        if wasNew
+            later()
+            later = undefined
 
         return [node[0], later]
 
@@ -59,7 +66,7 @@ window.updateLegendNodeForEntity = (node, entity) ->
         propFunc = props[prop.type]
         [propNode, later] = propFunc(entity, prop, node)
         node.appendChild(propNode)
-        setTimeout(later, 0)
+        if later then setTimeout(later, 0)
 
 window.updateLegendNodes = (legendNode, entitiesToShow) ->
     allNodes = $(legendNode).children('div')

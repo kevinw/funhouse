@@ -75,6 +75,7 @@ class Game
             opts ?= {}
             opts.addActor = (actor) => @engine.addActor(actor)
             opts.removeActor = (actor) => @engine.removeActor(actor)
+            opts.depth = @levelDepth
 
             @level = new Level(this, opts)
             @levels[@levelDepth] = @level
@@ -85,8 +86,11 @@ class Game
 
         if not @player?
             @player = new Player(@level, x, y)
+            @camera = new Camera(@player, 40, 20)
         else
             @player.moveToLevel(@level, x, y)
+
+        @level.setCamera(@camera)
 
         @display.clear()
 

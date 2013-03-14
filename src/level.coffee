@@ -39,9 +39,9 @@ class Level
         @entities = {}
         @mirrorSeers = []
 
-        console.time('generating floor')
+        console.time('generating floor of depth ' + opts.depth)
         @generate(opts)
-        console.timeEnd('generating floor')
+        console.timeEnd('generating floor of depth ' + opts.depth)
 
         @ambientLight = [0, 0, 0]
 
@@ -134,6 +134,16 @@ class Level
             digger.create (x, y, val) =>
                 if val == 0
                     @setCell(x, y, 'floor')
+            rooms = digger.getRooms()
+
+            if true
+                mirrorRoom = rooms.random()
+                mirrorRoomRect = Rect.fromRoom(mirrorRoom)
+                y = mirrorRoomRect.y1 - 1
+                if y > 0
+                    for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
+                        if not @cells[x+','+y]? and not @cells[x+','+(y-1)]?
+                            @setCell(x, y, 'downmirror')
 
             # place walls
             for y in [0..height]
@@ -141,16 +151,13 @@ class Level
                     if not @cells[x+','+y]?
                         left = @cells[(x-1)+','+y]
                         right = @cells[(x+1)+'.'+y]
-                        if false and @cells[x+','+(y+1)] == cells.floor and (not left or left == cells.downmirror) and (not right or right == cells.downmirror)
-                            @setCell(x, y, 'downmirror')
-                        else
-                            for [dx, dy] in ROT.DIRS['8']
-                                if @cells[(x+dx)+','+(y+dy)] == cells.floor
-                                    @setCell(x, y, 'plywood')
-                                    break
+                        for [dx, dy] in ROT.DIRS['8']
+                            if @cells[(x+dx)+','+(y+dy)] == cells.floor
+                                @setCell(x, y, 'plywood')
+                                break
 
             # place down stairs
-            exitRoom = digger.getRooms().random()
+            exitRoom = rooms.random()
             exitRoomRect = Rect.fromRoom(exitRoom)
             [x, y] = @findFreeCell({room: exitRoom})
             @downStairs = new DownStairs(this, x, y)
@@ -318,53 +325,60 @@ class Level
         multiply = ROT.Color.multiply
         baseColor = null
 
-        for key, cell of @cells
-            [x, y] = COORDS(key)
+        camRect = @camera.getRect()
+        for y in [camRect.y1..camRect.y2]
+            for x in [camRect.x1..camRect.x2]
+                screenX = x - camRect.x1
+                screenY = y - camRect.y1
+                key = x+','+y
+                cell = @cells[key]
+                if not cell? then continue
+                [x, y] = COORDS(key)
 
-            baseColor = @fgs[key] or [255, 255, 255]
+                baseColor = @fgs[key] or [255, 255, 255]
 
-            light = lightData[key]
+                light = lightData[key]
 
-            fog = @fog[key] or 0
-            if light
-                intensity = light[0]
-                if fog < intensity
-                    fog = Math.min(70, intensity)
-                    @fog[key] = fog
+                fog = @fog[key] or 0
+                if light
+                    intensity = light[0]
+                    if fog < intensity
+                        fog = Math.min(70, intensity)
+                        @fog[key] = fog
 
-            if not light or (light and fog >= (light[0] or 0))
-                light = [fog, fog, fog]
+                if not light or (light and fog >= (light[0] or 0))
+                    light = [fog, fog, fog]
 
-            if not light?
-                light = @ambientLight
+                if not light?
+                    light = @ambientLight
 
-            dynamicLight = lightData[key]
-            if dynamicLight? then light = clampColor(add(light, dynamicLight))
+                dynamicLight = lightData[key]
+                if dynamicLight? then light = clampColor(add(light, dynamicLight))
 
-            finalColor = multiply(baseColor, light)
-            lightColor = finalColor
+                finalColor = multiply(baseColor, light)
+                lightColor = finalColor
 
-            entityList = @entities[key]
-            if not @visible[key]?
-                entityList = (e for e in (entityList or []) when e.seeInFog)
+                entityList = @entities[key]
+                if not @visible[key]?
+                    entityList = (e for e in (entityList or []) when e.seeInFog)
 
-            bg = null
-            if entityList?.length
-                topEntity = entityList[entityList.length-1]
-                character = topEntity.char
-                assert(character, "entity doesn't define .char")
-                entityColor = topEntity.color
-                if entityColor?
-                    if typeof(entityColor) == 'string'
-                        entityColor = ROT.Color.fromString(entityColor)
+                bg = null
+                if entityList?.length
+                    topEntity = entityList[entityList.length-1]
+                    character = topEntity.char
+                    assert(character, "entity doesn't define .char")
+                    entityColor = topEntity.color
+                    if entityColor?
+                        if typeof(entityColor) == 'string'
+                            entityColor = ROT.Color.fromString(entityColor)
 
-                    finalColor = multiply(finalColor, entityColor)
-            else
-                character = cell.char
-                bg = @bgs[key] or null
-                if bg then bg = ROT.Color.toRGB(multiply(bg, light))
+                        finalColor = multiply(finalColor, entityColor)
+                else
+                    character = cell.char
+                    bg = @bgs[key] or null
+                    if bg then bg = ROT.Color.toRGB(multiply(bg, light))
 
-            @display.draw(x, y, character, ROT.Color.toRGB(finalColor), bg or null)
+                @display.draw(screenX, screenY, character, ROT.Color.toRGB(finalColor), bg or null)
 
         #
         # render mirrors
@@ -407,18 +421,19 @@ class Level
                         rayX += rayXDelta
                         rayY += rayYDelta
 
-                        [drawx, drawy] = [mirrorx + dx, mirrory + dy]
-                        if drawx >= maxwidth or drawy >= maxheight or drawx < 0 or drawy < 0
-                            break
-                    
                         cellKey = (mirrorx - rayX) + ',' + (mirrory - rayY)
                         if not @cells[cellKey] then break
 
-                        args = @display._data[cellKey]
+                        screenKey = @camera.getScreenKey(mirrorx - rayX, mirrory - rayY)
+                        args = @display._data[screenKey]
                         if not args? then break
 
+                        [drawx, drawy] = @camera.getScreenCoords(mirrorx + dx, mirrory + dy)
+                        if drawx >= @camera.width or drawy >= @camera.height or drawx < 0 or drawy < 0
+                            break
+                    
                         [x, y, ch, fg, bg] = args
-                        cell = @cells[x+','+y]
+                        cell = @cells[@camera.getWorldKey(x, y)]
                         @display.draw(drawx, drawy, ch, fg, bg)
 
                         if (rayXDelta < 0 and cell == cells.rightmirror) or 
@@ -430,4 +445,25 @@ class Level
 
         undefined
 
+    setCamera: (@camera) ->
+
 window.Level = Level
+
+class Camera
+    constructor: (@entity, @width, @height) ->
+        @getRect()
+
+    getScreenCoords: (x, y) ->
+        return [x-@rect.x1, y-@rect.y1]
+
+    getScreenKey: (x, y) ->
+        return (x-@rect.x1)+','+(y-@rect.y1)
+
+    getWorldKey: (x, y) ->
+        return (x+@rect.x1)+','+(y+@rect.y1)
+
+    getRect: ->
+        [x, y] = [@entity.getX() - Math.floor(@width/2), @entity.getY() - Math.floor(@height/2)]
+        @rect = Rect.fromWH(x, y, @width, @height)
+
+window.Camera = Camera
