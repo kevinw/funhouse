@@ -3,6 +3,12 @@
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
+constants =
+    sprintMeleeMultiplier: 2
+    sprintDistance: 3
+    sprintStepBreathCost: 8
+    breathRecoveryStep: 4
+
 controls = {
     # numpad
     up:  'up'
@@ -44,6 +50,21 @@ for keyName, action of controls
 
 globalId = 1
 
+class Meter
+    constructor: (opts) ->
+        for key, val of opts
+            @[key] = val
+
+    add: (val) ->
+        @value = Math.min(@max or 0, @value + val)
+        if @value < 0 then @value = 0
+        return @value
+
+    trySubtact: (val) ->
+        if @value >= val
+            @value -= val
+            return true
+
 class Entity
     damage: (opts) ->
         entity = opts.from
@@ -51,8 +72,7 @@ class Entity
 
         @level.addStatus('%s damaged %s.'.format(entity.statusDesc(), @statusDesc()))
 
-        @health.value = Math.max(0, @health.value - amount)
-        if @health.value == 0
+        if @health.add(-amount) == 0
             @die()
 
     die: ->
@@ -63,8 +83,7 @@ class Entity
             opts.value = opts.max
 
         @_meters ?= {}
-        @_meters[name] = opts
-        return opts
+        @_meters[name] = new Meter(opts)
 
     statusDesc: ->
         this.legendDesc or this.constructor.name
@@ -100,7 +119,9 @@ class Entity
         @_y = y
 
 window.Entity = Entity
+
 class Item extends Entity
+    seeInFog: true
 
 class Food extends Item
     char: '%'
@@ -113,6 +134,7 @@ window.Food = Food
 
 class Stairs extends Entity
     color: 'yellow'
+    seeInFog: true
     afterBump: (entity) ->
         entity.climbStairs?(this)
 
@@ -180,6 +202,8 @@ class Player extends Entity
     handleEvent: (e) ->
         code = e.keyCode
 
+        if e.altKey then return
+
         # one of numpad directions?
         return if not (code of keyMap)
 
@@ -187,30 +211,58 @@ class Player extends Entity
 
         # is there a free space?
         dir = ROT.DIRS[8][keyMap[code]]
-        newX = @_x + dir[0]
-        newY = @_y + dir[1]
-        @tryMoveTo(newX, newY)
+        if e.shiftKey
+            @trySprint(dir[0], dir[1])
+        else
+            newX = @_x + dir[0]
+            newY = @_y + dir[1]
+            @tryMoveTo(newX, newY)
 
         window.removeEventListener("keydown", this)
         @level.unlock()
 
     melee: (entity) ->
-        #@level.addStatus('You smack the %s.'.format(entity.statusDesc()))
+        amount = 6
+
+        if opts?.sprinting
+            amount *= constants.sprintMeleeMultiplier
+
         entity.damage
-            amount: 6
+            amount: amount
             from: this
 
-    tryMoveTo: (x, y) ->
+    tryMoveTo: (x, y, opts) ->
         moveInfo = @level.canMoveTo(x, y)
         if not moveInfo.canMove
             if moveInfo.bump?
                 @level.addStatus(moveInfo.bump)
         else if (entities = @level.hostilesAtCell(x, y)).length
             for entity in entities
-                @melee(entity)
+                @melee(entity, opts)
                 break
         else
             @level.moveEntity(this, x, y)
+            @breath.add(constants.breathRecoveryStep)
+            return true
+
+    trySprint: (x, y) ->
+        [sprintX, sprintY] = [x * constants.sprintDistance, y * constants.sprintDistance]
+        didMove = false
+        while sprintX != 0 or sprintY != 0
+            if not @breath.trySubtact(constants.sprintStepBreathCost)
+                if not didMove
+                    @level.addStatus('You try to sprint, but you\'re out of breath.')
+                break
+
+            [dx, dy] = [Math.sign(sprintX), Math.sign(sprintY)]
+            [newX, newY] = [@_x + dx, @_y + dy]
+            sprintX += -dx
+            sprintY += -dy
+
+            if not @tryMoveTo(newX, newY, {sprinting: true})
+                break
+
+            didMove = true
 
     _draw: -> {
         character: '@'
@@ -242,7 +294,7 @@ class Monster extends Entity
         for entity in @visibleEntities()
             if entity.group == 'players'
                 [@lastX, @lastY] = entity.position()
-                if Point.distance(entity.position(), @position()) == 1
+                if Point.distance(entity.position(), @position()) < 2
                     @attack(entity)
                     return
 

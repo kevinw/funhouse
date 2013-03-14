@@ -150,13 +150,13 @@ class Level
                                     break
 
             # place down stairs
-            exitRoom = digger._rooms.random()
+            exitRoom = digger.getRooms().random()
             exitRoomRect = Rect.fromRoom(exitRoom)
             [x, y] = @findFreeCell({room: exitRoom})
             @downStairs = new DownStairs(this, x, y)
 
             # place up stairs in a room kind of far away
-            otherRooms = (r for r in digger._rooms if r != exitRoom)
+            otherRooms = (r for r in digger.getRooms() if r != exitRoom)
             otherRooms.sort (r1, r2) ->
                 a = Point.distance(Rect.fromRoom(r1).center(), exitRoomRect.center())
                 b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
@@ -344,7 +344,9 @@ class Level
             finalColor = multiply(baseColor, light)
             lightColor = finalColor
 
-            entityList = if @visible[key]? then @entities[key]
+            entityList = @entities[key]
+            if not @visible[key]?
+                entityList = (e for e in (entityList or []) when e.seeInFog)
 
             bg = null
             if entityList?.length

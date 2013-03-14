@@ -1,10 +1,12 @@
 props =
-    bar: (entity, prop) ->
+    bar: (entity, prop, parentNode) ->
         if (meterName = prop.meter)?
             meter = entity[meterName]
+            name = meterName
             top = meter.value
             bottom = meter.max
         else
+            name = prop.attr
             top = entity[prop.attr]
             assert(top?, "entity %s missing expected \"%s\"".format(entity, prop.attr))
             bottom = entity[prop.maxAttr]
@@ -12,38 +14,52 @@ props =
 
         percentage =  Math.min(1, top / bottom) * 100
 
-        node = $("<div>").addClass('progress')
-        bar = $("<div>").addClass('bar')
-        bar.css('width', percentage + '%')
-        if prop.color?
-            bar.css('background', prop.color)
-        node.append(bar)
+        classname = 'prop-' + name
+        node = $(parentNode).children('.' + classname)
+        if not node.length
+            node = $("<div>").addClass('progress').addClass(classname)
+            bar = $("<div>").addClass('bar').appendTo(node)
+            text = $("<div>").addClass('text').text(prop.label).appendTo(node)
+        else
+            bar = node.children('.bar')
 
-        text = $("<div>").addClass('text').text(prop.label)
-        node.append(text)
+        later = ->
+            if prop.color?
+                bar.css('background', prop.color)
+            bar.css('width', percentage + '%')
 
-        return node[0]
+        return [node[0], later]
 
-window.updateLegendNodeForEntity = (node, entity) ->
+removeAllChildren = (node) ->
     while node.childNodes.length
         node.removeChild(node.childNodes[0])
 
-    header = document.createElement('div')
+window.updateLegendNodeForEntity = (node, entity) ->
+    #while node.childNodes.length
+        #node.removeChild(node.childNodes[0])
+
+    header = $(node).children('.entity-header')
+    if not header.length
+        header = $("<div>").addClass('entity-header').appendTo(node)
+
+    removeAllChildren(header[0])
 
     charSpan = document.createElement('span')
     if entity.color
         charSpan.setAttribute('style', 'color: %s;'.format(entity.color))
     charSpan.textContent = entity.char;
-    header.appendChild(charSpan)
+    header.append(charSpan)
 
     headerText = ": %s".format(entity.legendDesc or entity.constructor.name)
-    header.appendChild(document.createTextNode(headerText))
+    header.append(document.createTextNode(headerText))
 
-    node.appendChild(header)
+    node.appendChild(header[0])
 
     for prop in (entity.legendProps or [])
         propFunc = props[prop.type]
-        node.appendChild(propFunc(entity, prop))
+        [propNode, later] = propFunc(entity, prop, node)
+        node.appendChild(propNode)
+        setTimeout(later, 0)
 
 window.updateLegendNodes = (legendNode, entitiesToShow) ->
     allNodes = $(legendNode).children('div')
