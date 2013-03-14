@@ -1,3 +1,6 @@
+uiConstants =
+    shakeEffectDuration: 400
+
 props =
     bar: (entity, prop, parentNode) ->
         if (meterName = prop.meter)?
@@ -61,6 +64,12 @@ window.updateLegendNodeForEntity = (node, entity) ->
     header.append(document.createTextNode(headerText))
 
     node.appendChild(header[0])
+
+    if entity.effect?.damage
+        entity.effect.damage = 0 # TODO: use an actual publish subscribe thing, this is hacky
+        $(node).addClass('shake')
+        remove = -> $(node).removeClass('shake')
+        setTimeout(remove, uiConstants.shakeEffectDuration)
 
     for prop in (entity.legendProps or [])
         propFunc = props[prop.type]

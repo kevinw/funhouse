@@ -47,11 +47,20 @@ class Level
 
         @display = @game.display
 
-    canMoveTo: (x, y) ->
+    canMoveTo: (x, y, opts={}) ->
         key = KEY(x, y)
         cell = @cells[KEY(x, y)]
         if not cell?
             return false
+
+        if opts.entities
+            entities = @entitiesAtCell(x, y)
+            if opts.self
+                if (entities.length == 1 and entities[0] != opts.self) or entities.length > 1
+                    return {canMove: false}
+            else
+                if entities.length == 0
+                    return {canMove: false}
 
         if cell.blocksMovement == false
             return {canMove: true}
@@ -130,60 +139,9 @@ class Level
         if true
             width = 60#ROT.DEFAULT_WIDTH
             height = ROT.DEFAULT_HEIGHT
-            digger = new ROT.Map.Digger(width, height)
-            digger.create (x, y, val) =>
-                if val == 0
-                    @setCell(x, y, 'floor')
-            rooms = digger.getRooms()
 
-            if true
-                mirrorRoom = rooms.random()
-                mirrorRoomRect = Rect.fromRoom(mirrorRoom)
-                y = mirrorRoomRect.y1 - 1
-                if y > 0
-                    for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
-                        if not @cells[x+','+y]? and not @cells[x+','+(y-1)]?
-                            @setCell(x, y, 'downmirror')
-
-            # place walls
-            for y in [0..height]
-                for x in [0..width]
-                    if not @cells[x+','+y]?
-                        left = @cells[(x-1)+','+y]
-                        right = @cells[(x+1)+'.'+y]
-                        for [dx, dy] in ROT.DIRS['8']
-                            if @cells[(x+dx)+','+(y+dy)] == cells.floor
-                                @setCell(x, y, 'plywood')
-                                break
-
-            # place down stairs
-            exitRoom = rooms.random()
-            exitRoomRect = Rect.fromRoom(exitRoom)
-            [x, y] = @findFreeCell({room: exitRoom})
-            @downStairs = new DownStairs(this, x, y)
-
-            # place up stairs in a room kind of far away
-            otherRooms = (r for r in digger.getRooms() if r != exitRoom)
-            otherRooms.sort (r1, r2) ->
-                a = Point.distance(Rect.fromRoom(r1).center(), exitRoomRect.center())
-                b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
-                return if a >= b then -1 else 1
-
-            entranceRoom = otherRooms[0] or exitRoom
-            entranceRoomRect = Rect.fromRoom(entranceRoom)
-            [x, y] = @findFreeCell({room: entranceRoom})
-
-            if not opts.noUpStairs
-                @upStairs = new UpStairs(this, x, y)
-            else
-                @upStairsPosition = [x, y]
-
-            # place down monsters
-            for i in [0..4]
-                [x, y] = @findFreeCell()
-                while entranceRoomRect.containsXY(x, y)
-                    [x, y] = @findFreeCell()
-                new Monster(this, x, y)
+            mapInfo = @_generateDigger(width, height)
+            @_placeEntities(mapInfo, opts)
 
         else
             [startx, endx] = [7, 23]
@@ -211,6 +169,67 @@ class Level
         for i in [0..9]
             [x, y] = @findFreeCell()
             new Food(this, x, y)
+
+    _generateDigger: (width, height) ->
+        digger = new ROT.Map.Digger(width, height)
+        digger.create (x, y, val) =>
+            if val == 0
+                @setCell(x, y, 'floor')
+        rooms = digger.getRooms()
+
+        if true
+            mirrorRoom = rooms.random()
+            mirrorRoomRect = Rect.fromRoom(mirrorRoom)
+            y = mirrorRoomRect.y1 - 1
+            if y > 0
+                for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
+                    if not @cells[x+','+y]? and not @cells[x+','+(y-1)]?
+                        @setCell(x, y, 'downmirror')
+
+        # place walls
+        for y in [0..height]
+            for x in [0..width]
+                if not @cells[x+','+y]?
+                    left = @cells[(x-1)+','+y]
+                    right = @cells[(x+1)+'.'+y]
+                    for [dx, dy] in ROT.DIRS['8']
+                        if @cells[(x+dx)+','+(y+dy)] == cells.floor
+                            @setCell(x, y, 'plywood')
+                            break
+
+        return digger
+
+    _placeEntities: (mapInfo, opts) ->
+        rooms = mapInfo.getRooms()
+
+        # place down stairs
+        exitRoom = rooms.random()
+        exitRoomRect = Rect.fromRoom(exitRoom)
+        [x, y] = @findFreeCell({room: exitRoom})
+        @downStairs = new DownStairs(this, x, y)
+
+        # place up stairs in a room kind of far away
+        otherRooms = (r for r in rooms if r != exitRoom)
+        otherRooms.sort (r1, r2) ->
+            a = Point.distance(Rect.fromRoom(r1).center(), exitRoomRect.center())
+            b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
+            return if a >= b then -1 else 1
+
+        entranceRoom = otherRooms[0] or exitRoom
+        entranceRoomRect = Rect.fromRoom(entranceRoom)
+        [x, y] = @findFreeCell({room: entranceRoom})
+
+        if not opts.noUpStairs
+            @upStairs = new UpStairs(this, x, y)
+        else
+            @upStairsPosition = [x, y]
+
+        # place down monsters
+        for i in [0..4]
+            [x, y] = @findFreeCell()
+            while entranceRoomRect.containsXY(x, y)
+                [x, y] = @findFreeCell()
+            new Monster(this, x, y)
 
     entryPosition: (delta) ->
         if delta > 0

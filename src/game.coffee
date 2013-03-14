@@ -1,3 +1,5 @@
+'use strict'
+
 fades = [
     [66, 66, 66],
     [128, 128, 128],
@@ -42,10 +44,15 @@ class Game
     constructor: ->
         setupRandom()
 
+        @displaywidth = 50
+        @displayheight = 25
+
         @display = new ROT.Display {
             fontFamily: "Monaco" # TODO: load font
-            fontSize: 18
+            fontSize: 21
             spacing: 1.1
+            width: @displaywidth
+            height: @displayheight
         }
 
         displayNode = @display.getContainer()
@@ -86,7 +93,7 @@ class Game
 
         if not @player?
             @player = new Player(@level, x, y)
-            @camera = new Camera(@player, 40, 20)
+            @camera = new Camera(@player, @displaywidth, @displayheight)
         else
             @player.moveToLevel(@level, x, y)
 

@@ -6,8 +6,8 @@ rot_dirs[dir] = i for dir, i in rot_dirs
 constants =
     sprintMeleeMultiplier: 2
     sprintDistance: 3
-    sprintStepBreathCost: 8
-    breathRecoveryStep: 4
+    sprintStepBreathCost: 10
+    breathRecoveryStep: 1
 
 controls = {
     # numpad
@@ -66,6 +66,10 @@ class Meter
             return true
 
 class Entity
+    triggerEffect: (name, value) ->
+        @effect ?= {}
+        @effect[name] = value
+
     damage: (opts) ->
         entity = opts.from
         amount = opts.amount
@@ -74,6 +78,8 @@ class Entity
 
         if @health.add(-amount) == 0
             @die()
+
+        @triggerEffect('damage', amount)
 
     die: ->
         @level.removeEntity(this)
@@ -274,7 +280,7 @@ window.Player = Player
 class Monster extends Entity
     hostile: true
     char: "&"
-    sightRadius: 5
+    sightRadius: 15
 
     legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]
 
@@ -309,7 +315,7 @@ class Monster extends Entity
 
     headTowards: (x, y) ->
         passableCallback = (x, y) =>
-            @level.canMoveTo(x, y).canMove
+            @level.canMoveTo(x, y, {entities: true, self: this}).canMove
 
         astar = new ROT.Path.AStar(x, y, passableCallback, {topology: 8})
 
