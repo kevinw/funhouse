@@ -51,16 +51,12 @@ class Level
         key = KEY(x, y)
         cell = @cells[KEY(x, y)]
         if not cell?
-            return false
+            return {canMove: false}
 
         if opts.entities
-            entities = @entitiesAtCell(x, y)
-            if opts.self
-                if (entities.length == 1 and entities[0] != opts.self) or entities.length > 1
-                    return {canMove: false}
-            else
-                if entities.length == 0
-                    return {canMove: false}
+            entities = (e for e in @entitiesAtCell(x, y) when not (e.blocksPathFinding is false))
+            if (entities.length == 1 and entities[0] != opts.self) or entities.length > 1
+                return {canMove: false}
 
         if cell.blocksMovement == false
             return {canMove: true}
@@ -96,15 +92,15 @@ class Level
         while true
             # TODO: bust out of this loop
             key = cellList.random()
+            [x, y] = COORDS(key)
 
             if roomRect?
-                [x, y] = COORDS(key)
                 if not roomRect.containsXY(x, y)
                     continue
 
             assert(@cells[key] == cells[type])
             if not @entities[key]?.length
-                return COORDS(key)
+                return [x, y]
 
     lock: -> @game.lock()
     unlock: -> @game.unlock()
@@ -136,42 +132,24 @@ class Level
         cellList.push(key)
 
     generate: (opts) ->
-        if true
-            width = 60#ROT.DEFAULT_WIDTH
-            height = ROT.DEFAULT_HEIGHT
+        width = 60#ROT.DEFAULT_WIDTH
+        height = ROT.DEFAULT_HEIGHT
 
-            mapInfo = @_generateDigger(width, height)
-            @_placeEntities(mapInfo, opts)
+        opts.numMonsters = 4
+        opts.numFood = 10
 
-        else
-            [startx, endx] = [7, 23]
-            [starty, endy] = [3, 13]
-
-            WALLS_MIRRORED = true
-
-            for y in [starty..endy]
-                for x in [startx..endx]
-                    @setCell(x, y, 'floor')
-
-            if WALLS_MIRRORED
-                for y in [starty..endy]
-                    @setCell(endx+1, y, 'leftmirror')
-                    @setCell(startx-1, y, 'rightmirror')
-                    undefined
-
-                for x in [startx..endx]
-                    @setCell(x, endy+1, 'upmirror')
-                    @setCell(x, starty-1, 'downmirror')
-                    undefined
+        mapInfo = @_generateDigger(width, height)
+        #mapInfo = @_generateMaze(width, height)
+        #mapInfo = @_generateRoom(width, height)
+        @_placeEntities(mapInfo, opts)
 
         @recalcFov()
 
-        for i in [0..9]
-            [x, y] = @findFreeCell()
-            new Food(this, x, y)
-
     _generateDigger: (width, height) ->
-        digger = new ROT.Map.Digger(width, height)
+        digger = new ROT.Map.Digger(width, height, {
+            roomWidth: [4, 14]
+            roomHeight: [4, 9]
+        })
         digger.create (x, y, val) =>
             if val == 0
                 @setCell(x, y, 'floor')
@@ -199,6 +177,38 @@ class Level
 
         return digger
 
+    _generateMaze: (width, height) ->
+        maze = new ROT.Map.EllerMaze(width, height)
+        maze.create (x, y, val) =>
+            if val == 0
+                @setCell(x, y, 'floor')
+            else
+                @setCell(x, y, 'fourmirror')
+        return {
+            getRooms: -> [new ROT.Map.Feature.Room(0, 0, width, height)]
+        }
+
+    _generateRoom: (width, height) ->
+        wallType = 'plywood'
+        floorType = 'floor'
+
+        for x in [0..width-1]
+            @setCell(x, 0, wallType)
+            @setCell(x, height-1, wallType)
+
+        for y in [0..height-1]
+            @setCell(0, y, wallType)
+            @setCell(width-1, y, wallType)
+
+        for y in [1..height-2]
+            for x in [1..width-2]
+                @setCell(x, y, floorType)
+
+        return {
+            getRooms: -> [new ROT.Map.Feature.Room(0, 0, width, height)]
+        }
+
+
     _placeEntities: (mapInfo, opts) ->
         rooms = mapInfo.getRooms()
 
@@ -209,11 +219,12 @@ class Level
         @downStairs = new DownStairs(this, x, y)
 
         # place up stairs in a room kind of far away
-        otherRooms = (r for r in rooms if r != exitRoom)
-        otherRooms.sort (r1, r2) ->
-            a = Point.distance(Rect.fromRoom(r1).center(), exitRoomRect.center())
-            b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
-            return if a >= b then -1 else 1
+        otherRooms = (r for r in rooms when r != exitRoom)
+        if otherRooms.length
+            otherRooms.sort (r1, r2) ->
+                a = Point.distance(Rect.fromRoom(r1).center(), exitRoomRect.center())
+                b = Point.distance(Rect.fromRoom(r2).center(), exitRoomRect.center())
+                return if a >= b then -1 else 1
 
         entranceRoom = otherRooms[0] or exitRoom
         entranceRoomRect = Rect.fromRoom(entranceRoom)
@@ -225,11 +236,19 @@ class Level
             @upStairsPosition = [x, y]
 
         # place down monsters
-        for i in [0..4]
+        for i in [0..opts.numMonsters-1]
             [x, y] = @findFreeCell()
-            while entranceRoomRect.containsXY(x, y)
-                [x, y] = @findFreeCell()
+            if entranceRoom != exitRoom
+                failsafe = 0
+                while entranceRoomRect.containsXY(x, y)
+                    assert((failsafe += 1) < 100)
+                    [x, y] = @findFreeCell()
             new Monster(this, x, y)
+
+        # place food
+        for i in [0..opts.numFood-1]
+            [x, y] = @findFreeCell()
+            new Food(this, x, y)
 
     entryPosition: (delta) ->
         if delta > 0
@@ -250,7 +269,7 @@ class Level
         reflectivity = (x, y) => 
             @cells[x+','+y]?.reflectivity or 0
 
-        lighting = new ROT.Lighting(reflectivity, {range: 12, passes: 2})
+        lighting = new ROT.Lighting(reflectivity, {range: constants.playerSightRadius, passes: constants.lightPasses})
         lighting.setFOV(@fov)
 
         for key, entityList of @entities
@@ -270,7 +289,7 @@ class Level
         @hasBeenVisible ?= {}
         @_visibleEntities = []
         for entity in @mirrorSeers
-            @fov.compute(entity.getX(), entity.getY(), 12, (x, y, radius, visibility) =>
+            @fov.compute(entity.getX(), entity.getY(), constants.playerSightRadius, (x, y, radius, visibility) =>
                 key = x+','+y
                 @visible[x+','+y] = visibility
                 @hasBeenVisible[x+','+y] = true
@@ -281,19 +300,33 @@ class Level
     
     visibleEntities: -> @_visibleEntities or []
 
-    moveEntity: (entity, x, y) ->
-        otherEntities = @entitiesAtCell(x, y)
-        for a in otherEntities
-            a.bump(entity)
+    addEntity: (entity, x, y, opts={}) ->
+        key = KEY(x, y)
+        entityList = @entities[key]
+        if not entityList?
+            entityList = @entities[key] = []
 
+        entityList.push(entity)
+
+        if opts.addActor != false and entity.act
+            @addActor(entity)
+            if entity.seesMirrors then @mirrorSeers.push(entity)
+
+        for otherEntity in entityList.slice()
+            if otherEntity != entity
+                entity.bump(otherEntity)
+                otherEntity.bump(entity)
+
+        for b in entityList.slice()
+            if b != entity
+                b.afterBump(entity, opts)
+                entity.afterBump(b, opts)
+
+
+    moveEntity: (entity, x, y) ->
         @removeEntity(entity, {removeActor: false})
         entity.setPosition(x, y)
         @addEntity(entity, x, y, {addActor: false})
-
-        otherEntities = @entitiesAtCell(x, y)
-        for b in otherEntities
-            if b != entity
-                b.afterBump(entity)
 
     removeEntity: (entity, opts) ->
         opts ?= {}
@@ -316,18 +349,6 @@ class Level
 
             i = @mirrorSeers.indexOf(entity)
             if i != -1 then @mirrorSeers.splice(i, 1)
-
-    addEntity: (entity, x, y, opts={}) ->
-        key = KEY(x, y)
-        entityList = @entities[key]
-        if not entityList?
-            entityList = @entities[key] = []
-
-        entityList.push(entity)
-
-        if opts.addActor != false and entity.act
-            @addActor(entity)
-            if entity.seesMirrors then @mirrorSeers.push(entity)
 
     wakeUpActors: ->
         for entity in @allEntities()
@@ -384,8 +405,7 @@ class Level
                 bg = null
                 if entityList?.length
                     topEntity = entityList[entityList.length-1]
-                    character = topEntity.char
-                    assert(character, "entity doesn't define .char")
+                    character = topEntity.charFunc(x, y)
                     entityColor = topEntity.color
                     if entityColor?
                         if typeof(entityColor) == 'string'

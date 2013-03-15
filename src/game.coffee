@@ -44,8 +44,12 @@ class Game
     constructor: ->
         setupRandom()
 
+        @turn = 0
+
         @displaywidth = 50
         @displayheight = 25
+
+        @statusMessages = new StatusMessages(document.getElementById('status'))
 
         @display = new ROT.Display {
             fontFamily: "Monaco" # TODO: load font
@@ -62,8 +66,6 @@ class Game
         @levelDepth = 0
         @levels = {}
         @switchLevel(1, {noUpStairs: true})
-
-        @statusMessages = new StatusMessages(document.getElementById('status'))
 
         @addStatus('You enter the funhouse.')
         @addStatus('The exit slams shut behind you.')
@@ -110,7 +112,7 @@ class Game
 
     lock: ->
         @level.draw()
-        @updateLegend(@level.visibleEntities())
+        @updateLegend((e for e in @level.visibleEntities() when not e.entity.hideFromLegend))
         @engine.lock()
 
     unlock: ->

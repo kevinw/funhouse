@@ -32,6 +32,10 @@ cells =
         reflectivity: 0.1
         char: '-'
         bump: mirrorBumps
+    fourmirror:
+        reflectivity: 0.1
+        char: '©'
+        
 
 colorArrayFromStrings = (a) -> (ROT.Color.fromString(c) for c in a)
 
@@ -43,8 +47,6 @@ for cellName, cell of cells
         if typeof(cell.fg) == 'string'
             cell.fg = [cell.fg]
         cell.fg = colorArrayFromStrings(cell.fg)
-
-console.log(cells)
 
 getBumpMessage = (cell) ->
     bumps = cell.bump

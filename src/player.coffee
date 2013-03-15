@@ -3,7 +3,14 @@
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
-constants =
+enemyStates =
+    hunting: 'Hunting'
+
+window.constants =
+    lightPasses: 1
+    playerSightRadius: 20
+    playerSpeed: 100
+    hahaSpeedMultipler: 2
     sprintMeleeMultiplier: 2
     sprintDistance: 3
     sprintStepBreathCost: 10
@@ -65,7 +72,35 @@ class Meter
             @value -= val
             return true
 
-class Entity
+class EventDispatcher
+    publish: (eventName, args...) ->
+        if (subscribers = @_subscribers)
+            if (subscriberList = subscribers[eventName])?
+                for subscriber in subscriberList
+                    subscriber(args...)
+
+    subscribe: (eventName, cb) ->
+        if not (subscriberList = @_subscribers[eventName])
+            subscriberList = @_subscribers[eventName] = []
+        subscriberList.push(cb)
+
+    unsubscribeAll: ->
+        delete @_subscribers
+
+class Entity extends EventDispatcher
+    constructor: (@level, @_x, @_y) ->
+        assert(@level)
+
+        assert(typeof(@_x) == 'number' and not isNaN(@_x))
+        assert(typeof(@_y) == 'number' and not isNaN(@_x))
+
+        @guid = globalId
+        globalId += 1
+
+        @level.addEntity(this, @_x, @_y)
+
+    charFunc: (x, y) -> @char
+
     triggerEffect: (name, value) ->
         @effect ?= {}
         @effect[name] = value
@@ -74,7 +109,12 @@ class Entity
         entity = opts.from
         amount = opts.amount
 
-        @level.addStatus('%s damaged %s.'.format(entity.statusDesc(), @statusDesc()))
+        verb = opts.verb or 'damaged'
+
+        sentence = '%s %s %s.'.format(entity.statusDesc(), verb, @statusDesc())
+        sentence = sentence[0].toUpperCase() + sentence.substr(1)
+
+        @level.addStatus(sentence)
 
         if @health.add(-amount) == 0
             @die()
@@ -82,7 +122,10 @@ class Entity
         @triggerEffect('damage', amount)
 
     die: ->
+        @_dead = true
         @level.removeEntity(this)
+        @publish('dead')
+        @unsubscribeAll()
 
     makeMeter: (name, opts) ->
         if not opts.value?
@@ -92,15 +135,13 @@ class Entity
         @_meters[name] = new Meter(opts)
 
     statusDesc: ->
-        this.legendDesc or this.constructor.name
+        if @legendDesc?
+            if @needsThe
+                return 'the ' + @legendDesc
+            else
+                return @legendDesc
 
-    constructor: (@level, @_x, @_y) ->
-        assert(@level)
-
-        @guid = globalId
-        globalId += 1
-
-        @level.addEntity(this, @_x, @_y)
+        return @constructor.name
 
     moveToLevel: (newLevel, x, y) ->
         assert(newLevel != @level)
@@ -108,9 +149,9 @@ class Entity
         @level = newLevel
         @_x = x
         @_y = y
-        @level.addEntity(this, x, y)
+        @level.addEntity(this, x, y, {movingLevels: true})
 
-    getSpeed: -> 100
+    getSpeed: -> constants.playerSpeed
 
     getX: -> @_x
     getY: -> @_y
@@ -127,21 +168,26 @@ class Entity
 window.Entity = Entity
 
 class Item extends Entity
+    blocksPathFinding: false
     seeInFog: true
 
-class Food extends Item
+class Pickup extends Item
+    bump: (entity) ->
+        entity.pickup?(this)
+
+class Food extends Pickup
+    statusDesc: -> 'food'
     char: '%'
     color: 'red'
-
-    bump: (entity) ->
-        entity.eatFood?(this)
 
 window.Food = Food
 
 class Stairs extends Entity
     color: 'yellow'
     seeInFog: true
-    afterBump: (entity) ->
+    afterBump: (entity, opts) ->
+        if opts? and opts.movingLevels
+            return
         entity.climbStairs?(this)
 
 class DownStairs extends Stairs
@@ -158,11 +204,20 @@ window.Stairs = Stairs
 window.DownStairs = DownStairs
 window.UpStairs = UpStairs
 
+class Inventory
+    constructor: (@entity) ->
+        @items = []
+
+    pickup: (item) ->
+        @entity.level.removeEntity(item)
+        @items.push(item)
+
 class Player extends Entity
     seesMirrors: true
     group: 'players'
     toString: -> '<Player>'
     color: '#ff0'
+    statusDesc: -> 'you'
     char: '@'
 
     legendDesc: 'You'
@@ -172,6 +227,8 @@ class Player extends Entity
 
     constructor: ->
         super
+        
+        @inventory = new Inventory(this)
 
         @numFoods = 0
 
@@ -186,11 +243,16 @@ class Player extends Entity
     die: ->
         @level.addStatus('You died.')
         @level.lock()
+        super
 
     eatFood: (food) ->
         @numFoods += 1
         @level.removeEntity(food)
         @level.addStatus('You ate a food.')
+
+    pickup: (item) ->
+        @inventory.pickup(item)
+        @level.addStatus('You picked up the %s.'.format(item.statusDesc()))
 
     climbStairs: (stairs) ->
         entities = @level.allEntities()
@@ -202,6 +264,7 @@ class Player extends Entity
             @level.addStatus('You climb the stairs.')
 
     act: ->
+        @level.game.turn += 1
         @level.lock()
         window.addEventListener('keydown', this)
 
@@ -236,6 +299,7 @@ class Player extends Entity
         entity.damage
             amount: amount
             from: this
+            verb: 'punched'
 
     tryMoveTo: (x, y, opts) ->
         moveInfo = @level.canMoveTo(x, y)
@@ -277,15 +341,75 @@ class Player extends Entity
 
 window.Player = Player
 
+class Bullet extends Entity
+    blocksPathFinding: false
+    seeInFog: true
+    hideFromLegend: true
+    damageOpts: -> {}
+    bump: (entity) ->
+        if entity.group == 'players'
+            if entity.damage
+                opts = extend({
+                    amount: 3
+                    from: @sourceEntity or this
+                }, @damageOpts())
+                entity.damage(opts)
+                @die()
+
+    act: ->
+        target = vector.add(@position(), @velocity)
+        @level.moveEntity(this, target[0], target[1])
+        if not @level.canMoveTo(@_x, @_y).canMove
+            @die()
+
+class HaBullet extends Bullet
+    char: '*'
+    getSpeed: -> constants.playerSpeed * constants.hahaSpeedMultipler
+    damageOpts: ->
+        verb: 'laughed at'
+    constructor: (level, x, y, @velocity, @sourceEntity) ->
+        @origin = [x, y]
+        super
+    charFunc: (x, y) ->
+        if (x + y + @level.game.turn) % 2 is 0 then 'H' else 'A'
+
+class Attack
+    constructor: (@entity) ->
+
+
+class Beam extends Attack
+    beamWidth = 3
+
+    fire: (direction) ->
+        startPos = @entity.position()
+        for n in [1..constants.hahaSpeedMultipler+1]
+            startPos = vector.add(direction, startPos)
+            otherEntities = (a for a in @entity.level.entitiesAtCell(startPos[0], startPos[1]) when a instanceof HaBullet)
+            if otherEntities.length == 0
+                new HaBullet(@entity.level, startPos[0], startPos[1], direction, @entity)
+
+    shouldAttack: (entityInfo) ->
+        entity = entityInfo.entity
+
+        entityInfo.closestCardinalTo ?= vector.closestCardinal(entityInfo.vectorTo)
+        entityInfo.lengthTo ?= vector.length(entityInfo.vectorTo)
+
+        if entityInfo.lengthTo > 3 and entity.getX() == @entity.getX() or entity.getY() == @entity.getY()
+            @fire(entityInfo.closestCardinalTo)
+            return true
+
+
 class Monster extends Entity
+    needsThe: true
     hostile: true
     char: "&"
     sightRadius: 15
-
+    legendDesc: 'Evil Clown'
     legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]
 
     constructor: ->
         super
+        @attacks = [new Beam(this)]
 
         @health = @makeMeter('health', {max: 20})
 
@@ -297,21 +421,37 @@ class Monster extends Entity
     }
 
     act: ->
-        for entity in @visibleEntities()
-            if entity.group == 'players'
-                [@lastX, @lastY] = entity.position()
-                if Point.distance(entity.position(), @position()) < 2
-                    @attack(entity)
+        myPosition = @position()
+        for entity in @visibleEntities('players')
+            @lastSeenPos = entity.position()
+
+            vectorTo = vector.subtract(@lastSeenPos, myPosition)
+            length = vector.length(vectorTo)
+            if length < 2
+                @attack(entity)
+                return
+            else
+                if @chooseAttack(
+                    entity: entity,
+                    vectorTo: vectorTo
+                )
                     return
 
-        if @lastX?
-            @headTowards(@lastX, @lastY)
+        if @lastSeenPos?
+            @state = enemyStates.hunting
+            @headTowards(@lastSeenPos[0], @lastSeenPos[1])
+
+    chooseAttack: (entityInfo) ->
+        for attack in @attacks
+            if attack.shouldAttack(entityInfo)
+                return true
 
     attack: (entity) ->
         if entity?.damage
             entity.damage
                 amount: 3
                 from: this
+                verb: ['smacked', 'punched'].random()
 
     headTowards: (x, y) ->
         passableCallback = (x, y) =>
@@ -325,11 +465,21 @@ class Monster extends Entity
         if path.length
             @level.moveEntity(this, path[0][0], path[0][1])
 
-    visibleEntities: ->
+    visibleEntities: (inGroup) ->
         @fov ?= @level.createFOV()
+
+        groupTest = if inGroup?
+            (e) -> e.group == inGroup
+        else
+            (e) -> true
+
         vis = []
         @fov.compute(@_x, @_y, @sightRadius, (x, y, r, visible) =>
-            vis = vis.concat(@level.entitiesAtCell(x, y)) if visible)
+            if visible
+                entities = (e for e in @level.entitiesAtCell(x, y) when groupTest(e))
+                vis = vis.concat(entities)
+        )
+
         vis
 
 window.Monster = Monster

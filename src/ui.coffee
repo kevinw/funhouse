@@ -44,10 +44,20 @@ removeAllChildren = (node) ->
     while node.childNodes.length
         node.removeChild(node.childNodes[0])
 
-window.updateLegendNodeForEntity = (node, entity) ->
-    #while node.childNodes.length
-        #node.removeChild(node.childNodes[0])
+updateEntityStatus = (node, entity) ->
+    node = $(node)
 
+    if not state = entity.state
+        return node.children('.entity-state').remove()
+
+    if (stateNode = node.children('.entity-state')).length == 0
+        stateNode = $("<div>").addClass('entity-state')
+
+    stateNode.appendTo(node)
+
+    stateNode.text('(%s)'.format(state))
+
+window.updateLegendNodeForEntity = (node, entity) ->
     header = $(node).children('.entity-header')
     if not header.length
         header = $("<div>").addClass('entity-header').appendTo(node)
@@ -77,6 +87,8 @@ window.updateLegendNodeForEntity = (node, entity) ->
         node.appendChild(propNode)
         if later then setTimeout(later, 0)
 
+    updateEntityStatus(node, entity)
+
 window.updateLegendNodes = (legendNode, entitiesToShow) ->
     allNodes = $(legendNode).children('div')
 
@@ -93,7 +105,3 @@ window.updateLegendNodes = (legendNode, entitiesToShow) ->
     # remove old
     toDelete = (n for n in legendNode.children when not seen[n.getAttribute('id')])
     legendNode.removeChild(n) for n in toDelete
-
-
-
-
