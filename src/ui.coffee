@@ -1,6 +1,13 @@
 uiConstants =
     shakeEffectDuration: 400
 
+legendLabel = (entity, prop) ->
+    label = prop.label
+    if typeof(label) == 'string'
+        label
+    else
+        label(entity)
+
 props =
     bar: (entity, prop, parentNode) ->
         if (meterName = prop.meter)?
@@ -23,10 +30,13 @@ props =
         if not node.length
             node = $("<div>").addClass('progress').addClass(classname)
             bar = $("<div>").addClass('bar').appendTo(node)
-            text = $("<div>").addClass('text').text(prop.label).appendTo(node)
+            text = $("<div>").addClass('text').appendTo(node)
             wasNew = true
         else
             bar = node.children('.bar')
+            text = node.children('.text')
+
+        text.text(legendLabel(entity, prop))
 
         if prop.color?
             bar.css('background', prop.color)

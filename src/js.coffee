@@ -8,3 +8,6 @@ Math.sign ?= (x) ->
         -1
     else
         0
+
+Array::removeRandom ?= ->
+    @splice(Math.floor(ROT.RNG.getUniform() * @length), 1)[0]

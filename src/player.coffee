@@ -3,6 +3,17 @@
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
+xpForNextLevel = (level) -> 
+    Math.ceil(Math.pow(1.6, level) * 3) - 3
+
+for n in [0..10]
+    console.log('level to' , n+1, 'at', xpForNextLevel(n))
+
+idleStatuses = [
+    'You yawn nervously.'
+    'You cringe as loud recorded laughter booms from a hidden speaker.'
+]
+
 enemyStates =
     hunting: 'Hunting'
 
@@ -15,6 +26,7 @@ window.constants =
     sprintDistance: 3
     sprintStepBreathCost: 10
     breathRecoveryStep: 1
+    idleStatusChance: .01
 
 controls = {
     # numpad
@@ -43,6 +55,8 @@ controls = {
     a: 'left'
     s: 'down'
     d: 'right'
+
+    i: 'show_inventory'
 }
 
 keyMap = {}
@@ -50,10 +64,8 @@ for keyName, action of controls
     key = 'VK_' + keyName.toUpperCase()
     assert(key, "unknown key " + keyName)
 
-    direction = rot_dirs[action]
-    assert(direction != undefined, "could not find a direction for " + action)
-
-    keyMap[ROT[key]] = rot_dirs[action]
+    if (direction = rot_dirs[action])?
+        keyMap[ROT[key]] = direction
 
 globalId = 1
 
@@ -182,6 +194,18 @@ class Food extends Pickup
 
 window.Food = Food
 
+class WhelkShell extends Pickup
+    statusDesc: -> 'whelk shell'
+    char: 'W'
+    constructor: ->
+        super
+        @imaginationValue = ROT.RNG.getNormal(20, 5)
+    use: (entity) ->
+        entity.level.addStatus('You place the shell to your ear, and hear the ocean.')
+        entity.imagination.add(@imaginationValue)
+
+window.WhelkShell = WhelkShell
+
 class Stairs extends Entity
     color: 'yellow'
     seeInFog: true
@@ -222,8 +246,9 @@ class Player extends Entity
 
     legendDesc: 'You'
     legendProps: [{type: 'bar', meter: 'health', label: 'Self-esteem'},
-                  {type: 'bar', meter: 'breath', label: 'Breath', color: '#006633'},
-                  {type: 'bar', meter: 'imagination', label: 'Imagination', color: '#880055'}]
+                  {type: 'bar', meter: 'breath', label: 'Breath', color: '#667700'},
+                  {type: 'bar', meter: 'imagination', label: 'Imagination', color: '#880055'},
+                  {type: 'bar', meter: 'xpMeter', label: ((entity) -> 'Level ' + entity.xplevel), color: '#006633'}]
 
     constructor: ->
         super
@@ -239,6 +264,39 @@ class Player extends Entity
         @health = @makeMeter('health', {max: 100})
         @breath = @makeMeter('breath', {max: 100})
         @imagination = @makeMeter('imagination', {max: 100})
+
+        @xp = 0
+        @xplevel = 1
+        @_updateXP()
+
+    awardXp: (info) ->
+        if typeof(info.xp) != 'number'
+            console.log("ERROR: expected info.xp to be a number, got " + typeof(info.xp))
+            return
+
+        @xp += info.xp
+        @_updateXP()
+
+    _updateXP: ->
+        lastLevelUp = xpForNextLevel(@xplevel-1)
+        nextLevelUpAt = xpForNextLevel(@xplevel)
+
+        originalLevel = @xplevel
+        while @xp >= nextLevelUpAt
+            @xplevel += 1
+            lastLevelUp = xpForNextLevel(@xplevel-1)
+            nextLevelUpAt = xpForNextLevel(@xplevel)
+
+        if @xplevel > originalLevel
+            @didLevelUp()
+
+        max = nextLevelUpAt - lastLevelUp
+        value = @xp - lastLevelUp
+
+        @xpMeter = @makeMeter('xp', {value: value, max: max})
+
+    didLevelUp: ->
+        alert("YOU LEVELED UP TO " + @xplevel)
 
     die: ->
         @level.addStatus('You died.')
@@ -272,6 +330,8 @@ class Player extends Entity
         code = e.keyCode
 
         if e.altKey then return
+
+    
 
         # one of numpad directions?
         return if not (code of keyMap)
@@ -313,7 +373,14 @@ class Player extends Entity
         else
             @level.moveEntity(this, x, y)
             @breath.add(constants.breathRecoveryStep)
+            if ROT.RNG.getUniform() < constants.idleStatusChance
+                @showIdleStatus()
+
             return true
+
+    showIdleStatus: ->
+        if idleStatuses.length
+            @level.addStatus(idleStatuses.removeRandom())
 
     trySprint: (x, y) ->
         [sprintX, sprintY] = [x * constants.sprintDistance, y * constants.sprintDistance]
@@ -406,6 +473,13 @@ class Monster extends Entity
     sightRadius: 15
     legendDesc: 'Evil Clown'
     legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]
+
+    xpValue: -> 1
+
+    die: ->
+        @level.awardXp
+            xp: @xpValue()
+        super
 
     constructor: ->
         super

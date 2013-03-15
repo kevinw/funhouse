@@ -68,8 +68,7 @@ class Level
         all = []
         for key, entityList of @entities
             all = all.concat(entityList)
-
-        return all
+        all
 
     entitiesAtCell: (x, y) ->
         return (@entities[KEY(x, y)] or []).slice()
@@ -250,6 +249,11 @@ class Level
             [x, y] = @findFreeCell()
             new Food(this, x, y)
 
+        # place whelk shells
+        for i in [0..5]
+            [x, y] = @findFreeCell()
+            new WhelkShell(this, x, y)
+
     entryPosition: (delta) ->
         if delta > 0
             @upStairs?.position() or @upStairsPosition
@@ -297,8 +301,16 @@ class Level
                     @_visibleEntities.push({entity: e, distance: radius})
             )
 
+        undefined
     
     visibleEntities: -> @_visibleEntities or []
+
+    awardXp: (opts) ->
+        for player in @mirrorSeers
+            if player.awardXp
+                player.awardXp(opts)
+
+        undefined
 
     addEntity: (entity, x, y, opts={}) ->
         key = KEY(x, y)
@@ -321,6 +333,8 @@ class Level
             if b != entity
                 b.afterBump(entity, opts)
                 entity.afterBump(b, opts)
+
+        undefined
 
 
     moveEntity: (entity, x, y) ->
@@ -354,6 +368,8 @@ class Level
         for entity in @allEntities()
             if entity.act
                 @addActor(entity)
+
+        undefined
 
     draw: ->
         @display.clear()
