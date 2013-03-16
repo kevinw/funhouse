@@ -2,11 +2,28 @@
 
 Made for the [7DRL Challenge 2013](http://7drl.org/).
 
+## Play Online
+
+<strong>[Play in your browser here](http://kevinw.github.com/funhouse)</strong>
+
 ## How to Play
 
  * Arrows or hjkl to move.
  * Hold shift to sprint.
  * i brings up your inventory.
+
+## TODO
+
+ * bonuses/choices when you level up
+ * vary colors of floors, walls
+ * title screen
+ * tutorial
+ * enemy variants
+ * place items and enemies at "leaf nodes" in the graph
+ * secret doors
+ * boss rooms
+ * endgame: unlock game creation options to share your own tweaked version with others
+ * enemy drops?
 
 ## Special Thanks
 
