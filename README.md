@@ -1,10 +1,12 @@
-# Untitled Funhouse Broguelike
+# FunhouseRL
 
 Made for the [7DRL Challenge 2013](http://7drl.org/).
 
 ## How to Play
 
-hmmm
+ * Arrows or hjkl to move.
+ * Hold shift to sprint.
+ * i brings up your inventory.
 
 ## Special Thanks
 
