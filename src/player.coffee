@@ -500,6 +500,9 @@ class Bullet extends Entity
 class HaBullet extends Bullet
     char: '*'
     getSpeed: -> constants.playerSpeed * constants.hahaSpeedMultipler
+    drawOpts: ->
+        jiggle: [ROT.RNG.getUniform() * 4 - 2, ROT.RNG.getUniform() * 4 - 2]
+
     damageOpts: ->
         verb: 'laughed at'
     constructor: (level, x, y, @velocity, @sourceEntity) ->

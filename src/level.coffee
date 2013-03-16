@@ -426,9 +426,11 @@ class Level
                     entityList = (e for e in (entityList or []) when e.seeInFog)
 
                 bg = null
+                opts = undefined
                 if entityList?.length
                     topEntity = entityList[entityList.length-1]
                     character = topEntity.charFunc(x, y)
+                    opts = if topEntity.drawOpts then topEntity.drawOpts() else undefined
                     entityColor = topEntity.color
                     if entityColor?
                         if typeof(entityColor) == 'string'
@@ -440,7 +442,7 @@ class Level
                     bg = @bgs[key] or null
                     if bg then bg = ROT.Color.toRGB(multiply(bg, light))
 
-                @display.draw(screenX, screenY, character, ROT.Color.toRGB(finalColor), bg or null)
+                @display.draw(screenX, screenY, character, ROT.Color.toRGB(finalColor), bg or null, opts)
 
         #
         # render mirrors
