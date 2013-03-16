@@ -12,6 +12,9 @@ for n in [0..10]
 idleStatuses = [
     'You yawn nervously.'
     'You cringe as loud recorded laughter booms from a hidden speaker.'
+    'There\'s something sharp in your shoe.'
+    'You scratch an itch on your nose.'
+    'A frigid breeze ruffles the hair on the back of your neck.'
 ]
 
 enemyStates =
@@ -25,8 +28,14 @@ window.constants =
     sprintMeleeMultiplier: 2
     sprintDistance: 3
     sprintStepBreathCost: 10
+    meleeBreathCost: 6
     breathRecoveryStep: 1
-    idleStatusChance: .01
+    idleStatusChance: .005
+
+    selfEsteemColor: '#0000aa'
+
+    imaginationColor: '#880055'
+    mirrorImaginationCost: 10
 
 controls = {
     # numpad
@@ -64,8 +73,12 @@ for keyName, action of controls
     key = 'VK_' + keyName.toUpperCase()
     assert(key, "unknown key " + keyName)
 
+    keyCode = ROT[key]
+
     if (direction = rot_dirs[action])?
-        keyMap[ROT[key]] = direction
+        keyMap[keyCode] = direction
+    else
+        keyMap[keyCode] = action
 
 globalId = 1
 
@@ -79,7 +92,7 @@ class Meter
         if @value < 0 then @value = 0
         return @value
 
-    trySubtact: (val) ->
+    trySubtract: (val) ->
         if @value >= val
             @value -= val
             return true
@@ -118,13 +131,14 @@ class Entity extends EventDispatcher
         @effect[name] = value
 
     damage: (opts) ->
-        entity = opts.from
         amount = opts.amount
+        sentence = opts.sentence
 
-        verb = opts.verb or 'damaged'
-
-        sentence = '%s %s %s.'.format(entity.statusDesc(), verb, @statusDesc())
-        sentence = sentence[0].toUpperCase() + sentence.substr(1)
+        if not sentence?
+            entity = opts.from
+            verb = opts.verb or 'damaged'
+            sentence = '%s %s %s.'.format(entity.statusDesc(), verb, @statusDesc())
+            sentence = sentence[0].toUpperCase() + sentence.substr(1)
 
         @level.addStatus(sentence)
 
@@ -179,9 +193,22 @@ class Entity extends EventDispatcher
 
 window.Entity = Entity
 
+usefunc = (opts) ->
+    assert(opts.func)
+    for k, v of opts
+        if k != 'func'
+            opts.func[k] = v
+    opts.func._useFunc = true
+    opts.func
+
 class Item extends Entity
+    useFuncs: -> (this[a] for a of this when this[a]?._useFunc)
     blocksPathFinding: false
     seeInFog: true
+    inventoryDesc: -> ''
+    drop: usefunc
+        label: 'drop'
+        func: (inventory) -> inventory.drop(this)
 
 class Pickup extends Item
     bump: (entity) ->
@@ -189,20 +216,34 @@ class Pickup extends Item
 
 class Food extends Pickup
     statusDesc: -> 'food'
+    inventoryDesc: -> 'Some food. Boosts your self-esteem.'
     char: '%'
     color: 'red'
+    eat: usefunc
+        label: 'eat'
+        func: (inventory) ->
+            inventory.entity.eatFood(this)
+            inventory.remove(this)
 
 window.Food = Food
 
 class WhelkShell extends Pickup
     statusDesc: -> 'whelk shell'
     char: 'W'
+    inventoryDesc: ->
+        'A sprial shell, the kind you put up to your ear to hear the ocean.'
     constructor: ->
         super
-        @imaginationValue = ROT.RNG.getNormal(20, 5)
-    use: (entity) ->
-        entity.level.addStatus('You place the shell to your ear, and hear the ocean.')
-        entity.imagination.add(@imaginationValue)
+        @imaginationValue = Math.floor(ROT.RNG.getNormal(20, 5))
+    listen: usefunc
+        label: 'listen'
+        func: (inventory) ->
+            entity = inventory.entity
+            msg = 'You place the shell to your ear, and hear the ocean. '
+            msg = msg + statusColor(constants.imaginationColor, '(+%s imagination)'.format(@imaginationValue))
+            entity.level.addStatus(msg)
+            entity.imagination.add(@imaginationValue)
+            inventory.remove(this)
 
 window.WhelkShell = WhelkShell
 
@@ -232,10 +273,22 @@ class Inventory
     constructor: (@entity) ->
         @items = []
 
+    remove: (item) ->
+        @items.remove(item)
+
+    drop: (item) ->
+        @items.remove(item)
+        @entity.level.addStatus('You dropped the %s.'.format(item.statusDesc()))
+
+        [x, y] = [@entity.getX(), @entity.getY()]
+        item.setPosition(x, y)
+        @entity.level.addEntity(item, x, y, {skipBump:true})
+
     pickup: (item) ->
         @entity.level.removeEntity(item)
         @items.push(item)
 
+# TODO: more composition, less inheritance, duh
 class Player extends Entity
     seesMirrors: true
     group: 'players'
@@ -245,14 +298,12 @@ class Player extends Entity
     char: '@'
 
     legendDesc: 'You'
-    legendProps: [{type: 'bar', meter: 'health', label: 'Self-esteem'},
+    legendProps: [{type: 'bar', meter: 'health', label: 'Self-esteem', color: constants.selfEsteemColor},
                   {type: 'bar', meter: 'breath', label: 'Breath', color: '#667700'},
-                  {type: 'bar', meter: 'imagination', label: 'Imagination', color: '#880055'},
+                  {type: 'bar', meter: 'imagination', label: 'Imagination', color: constants.imaginationColor},
                   {type: 'bar', meter: 'xpMeter', label: ((entity) -> 'Level ' + entity.xplevel), color: '#006633'}]
 
     constructor: ->
-        super
-        
         @inventory = new Inventory(this)
 
         @numFoods = 0
@@ -263,12 +314,14 @@ class Player extends Entity
 
         @health = @makeMeter('health', {max: 100})
         @breath = @makeMeter('breath', {max: 100})
-        @imagination = @makeMeter('imagination', {max: 100})
+        @imagination = @makeMeter('imagination', {value: 20, max: 100})
 
         @xp = 0
         @xplevel = 1
         @_updateXP()
 
+        super
+        
     awardXp: (info) ->
         if typeof(info.xp) != 'number'
             console.log("ERROR: expected info.xp to be a number, got " + typeof(info.xp))
@@ -305,7 +358,6 @@ class Player extends Entity
 
     eatFood: (food) ->
         @numFoods += 1
-        @level.removeEntity(food)
         @level.addStatus('You ate a food.')
 
     pickup: (item) ->
@@ -331,15 +383,21 @@ class Player extends Entity
 
         if e.altKey then return
 
-    
-
-        # one of numpad directions?
-        return if not (code of keyMap)
+        return if not (action = keyMap[code])?
 
         e.preventDefault()
 
+        if (handler = @['on_' + action])
+            window.removeEventListener('keydown', this)
+            return handler.call this, (takeTurn) =>
+                if takeTurn
+                    @level.unlock()
+                else
+                    window.addEventListener('keydown', this)
+
+
         # is there a free space?
-        dir = ROT.DIRS[8][keyMap[code]]
+        dir = ROT.DIRS[8][action]
         if e.shiftKey
             @trySprint(dir[0], dir[1])
         else
@@ -350,21 +408,31 @@ class Player extends Entity
         window.removeEventListener("keydown", this)
         @level.unlock()
 
+    on_show_inventory: (after) ->
+        showInventory(@inventory, after)
+
     melee: (entity) ->
         amount = 6
 
         if opts?.sprinting
             amount *= constants.sprintMeleeMultiplier
 
-        entity.damage
-            amount: amount
-            from: this
-            verb: 'punched'
+        if not @breath.trySubtract(constants.meleeBreathCost)
+            @level.addStatus('You try to hit %s, but you\'re wheezing.'.format(entity.statusDesc()))
+        else
+            entity.damage
+                amount: amount
+                from: this
+                verb: 'punched'
 
     tryMoveTo: (x, y, opts) ->
         moveInfo = @level.canMoveTo(x, y)
         if not moveInfo.canMove
-            if moveInfo.bump?
+            skipBumpMsg = false
+            if moveInfo.bumpFunc?
+                if moveInfo.bumpFunc(this) is false
+                    skipBumpMsg = true
+            if not skipBumpMsg and moveInfo.bump?
                 @level.addStatus(moveInfo.bump)
         else if (entities = @level.hostilesAtCell(x, y)).length
             for entity in entities
@@ -386,7 +454,7 @@ class Player extends Entity
         [sprintX, sprintY] = [x * constants.sprintDistance, y * constants.sprintDistance]
         didMove = false
         while sprintX != 0 or sprintY != 0
-            if not @breath.trySubtact(constants.sprintStepBreathCost)
+            if not @breath.trySubtract(constants.sprintStepBreathCost)
                 if not didMove
                     @level.addStatus('You try to sprint, but you\'re out of breath.')
                 break
@@ -447,8 +515,11 @@ class Attack
 class Beam extends Attack
     beamWidth = 3
 
+    attackStatus: -> ['laughing maniacally', 'giggling', 'chuckling'].random()
+
     fire: (direction) ->
         startPos = @entity.position()
+        # THIS IS ATROCIOUS
         for n in [1..constants.hahaSpeedMultipler+1]
             startPos = vector.add(direction, startPos)
             otherEntities = (a for a in @entity.level.entitiesAtCell(startPos[0], startPos[1]) when a instanceof HaBullet)
@@ -465,11 +536,10 @@ class Beam extends Attack
             @fire(entityInfo.closestCardinalTo)
             return true
 
-
 class Monster extends Entity
     needsThe: true
     hostile: true
-    char: "&"
+    char: "C"
     sightRadius: 15
     legendDesc: 'Evil Clown'
     legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]
@@ -518,6 +588,8 @@ class Monster extends Entity
     chooseAttack: (entityInfo) ->
         for attack in @attacks
             if attack.shouldAttack(entityInfo)
+                if (state = attack.attackStatus?())
+                    @state = state
                 return true
 
     attack: (entity) ->

@@ -1,9 +1,9 @@
 'use strict'
 
 fades = [
-    [66, 66, 66],
-    [128, 128, 128],
-    [255, 255, 255],
+    66/255,
+    128/255,
+    255/255,
 ]
 
 class StatusMessages
@@ -18,7 +18,7 @@ class StatusMessages
             color: [255, 255, 255]
 
         div = document.createElement('div')
-        div.appendChild(document.createTextNode(msg))
+        $(div).html(msg)
 
         # remove older statuses
         @node.appendChild(div)
@@ -29,8 +29,8 @@ class StatusMessages
 
         # fade status messages as they go into the past
         for node, i in @node.childNodes
-            color = ROT.Color.multiply(visibleMessages[i].color, fades[i])
-            node.setAttribute('style', 'color: %s;'.format(ROT.Color.toRGB(color)))
+            fade = if fades[i]? then fades[i] else fades[0]
+            node.setAttribute('style', 'opacity: %s;'.format(fade))
 
 class Game
     display: null

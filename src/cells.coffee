@@ -1,6 +1,17 @@
 mirrorBumps = "
-You can't see yourself go on forever, because no matter how you stand, your head gets in the way.
+You glance at yourself in the mirror.
 "
+
+mirrorBumpFunc = (entity) ->
+    dmgAmount = 5
+    entity.damage
+        sentence: 'You glance at yourself in the mirror. %s'.format(
+            statusColor(constants.selfEsteemColor, '(%s self-esteem)'.format(
+                statusColor('red', '' + (-dmgAmount))
+            ))
+        )
+        amount: 5
+    return false
 
 cells =
     floor:
@@ -20,21 +31,26 @@ cells =
         reflectivity: 0.1
         char: '|'
         bump: mirrorBumps
+        bumpFunc: mirrorBumpFunc
     leftmirror:
         reflectivity: 0.1
         char: '|'
         bump: mirrorBumps
+        bumpFunc: mirrorBumpFunc
     upmirror:
         reflectivity: 0.1
         char: '-'
         bump: mirrorBumps
+        bumpFunc: mirrorBumpFunc
     downmirror:
         reflectivity: 0.1
         char: '-'
         bump: mirrorBumps
+        bumpFunc: mirrorBumpFunc
     fourmirror:
         reflectivity: 0.1
         char: '©'
+        bumpFunc: mirrorBumpFunc
         
 
 colorArrayFromStrings = (a) -> (ROT.Color.fromString(c) for c in a)

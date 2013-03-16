@@ -1,19 +1,21 @@
 FINISH LIST
 
-- leveling up
+x leveling up
     - things that can level up
-
+- make floor tiles have a lower contrast dot, and maybe vary their background in a 2x2 checkboard pattern? vary this across rooms and corridors?
+- vary colors of floors
 - title screen
 - tutorial level
 - add enemy variants
 - add at least one more enemy type
     - madness
-    -
 - vary dungeon design as you ascend (and descend?)
 - have each room have something
     - door closes behind you, w/ item
     - a secret door
 - place different wall types
 - add a last boss
-
+- use an actual image somewhere for effect
+- endgame: unlock game creation options to share your own tweaked version with others
 - sometimes enemies drop things?
+- writeup

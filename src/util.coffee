@@ -108,3 +108,8 @@ window.extend = (obj, mixin) ->
     obj[name] = value for name, value of mixin
     obj
 
+window.funcOrString = (f, args...) ->
+    if typeof(f) == 'string' then f else f(args...)
+
+window.statusColor = (color, text) -> '<span style="color: %s;">%s</span>'.format(color, text)
+

@@ -61,8 +61,11 @@ class Level
         if cell.blocksMovement == false
             return {canMove: true}
 
-        bump = getBumpMessage(cell)
-        return {canMove: false, bump: bump}
+        return {
+            canMove: false
+            bump: getBumpMessage(cell)
+            bumpFunc: cell.bumpFunc
+        }
 
     allEntities: ->
         all = []
@@ -313,6 +316,9 @@ class Level
         undefined
 
     addEntity: (entity, x, y, opts={}) ->
+        assert(entity.getX() == x)
+        assert(entity.getY() == y)
+
         key = KEY(x, y)
         entityList = @entities[key]
         if not entityList?
@@ -324,15 +330,16 @@ class Level
             @addActor(entity)
             if entity.seesMirrors then @mirrorSeers.push(entity)
 
-        for otherEntity in entityList.slice()
-            if otherEntity != entity
-                entity.bump(otherEntity)
-                otherEntity.bump(entity)
+        if not opts.skipBump
+            for otherEntity in entityList.slice()
+                if otherEntity != entity
+                    entity.bump(otherEntity, opts)
+                    otherEntity.bump(entity, opts)
 
-        for b in entityList.slice()
-            if b != entity
-                b.afterBump(entity, opts)
-                entity.afterBump(b, opts)
+            for b in entityList.slice()
+                if b != entity
+                    b.afterBump(entity, opts)
+                    entity.afterBump(b, opts)
 
         undefined
 

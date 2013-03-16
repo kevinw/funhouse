@@ -11,3 +11,8 @@ Math.sign ?= (x) ->
 
 Array::removeRandom ?= ->
     @splice(Math.floor(ROT.RNG.getUniform() * @length), 1)[0]
+
+Array::remove ?= (item) ->
+    while (i = @indexOf(item)) != -1
+        @splice(i, 1)
+    return
