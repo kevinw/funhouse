@@ -1,7 +1,3 @@
-mirrorBumps = "
-You glance at yourself in the mirror.
-"
-
 mirrorBumpFunc = (entity) ->
     dmgAmount = 5
     entity.damage
@@ -30,22 +26,18 @@ cells =
     rightmirror:
         reflectivity: 0.1
         char: '|'
-        bump: mirrorBumps
         bumpFunc: mirrorBumpFunc
     leftmirror:
         reflectivity: 0.1
         char: '|'
-        bump: mirrorBumps
         bumpFunc: mirrorBumpFunc
     upmirror:
         reflectivity: 0.1
         char: '-'
-        bump: mirrorBumps
         bumpFunc: mirrorBumpFunc
     downmirror:
         reflectivity: 0.1
         char: '-'
-        bump: mirrorBumps
         bumpFunc: mirrorBumpFunc
     fourmirror:
         reflectivity: 0.1

@@ -1,20 +1,18 @@
 'use strict'
 
+GOD_MODE = false
+ALLOW_LEVEL_JUMPING = false
+
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
 xpForNextLevel = (level) -> 
     Math.ceil(Math.pow(1.6, level) * 3) - 3
 
-for n in [0..10]
-    console.log('level to' , n+1, 'at', xpForNextLevel(n))
-
 idleStatuses = [
     'You yawn nervously.'
     'You cringe as loud recorded laughter booms from a hidden speaker.'
     'There\'s something sharp in your shoe.'
-    'You scratch an itch on your nose.'
-    'A frigid breeze ruffles the hair on the back of your neck.'
 ]
 
 enemyStates =
@@ -30,7 +28,7 @@ window.constants =
     sprintStepBreathCost: 10
     meleeBreathCost: 6
     breathRecoveryStep: 1
-    idleStatusChance: .005
+    idleStatusChance: .001
 
     selfEsteemColor: '#0000aa'
 
@@ -67,6 +65,12 @@ controls = {
 
     i: 'show_inventory'
 }
+
+if ALLOW_LEVEL_JUMPING
+    extend(controls,
+        z: 'prevLevel'
+        x: 'nextLevel'
+    )
 
 keyMap = {}
 for keyName, action of controls
@@ -181,6 +185,7 @@ class Entity extends EventDispatcher
 
     getX: -> @_x
     getY: -> @_y
+    getKey: -> "#{@_x},#{@_y}"
     position: -> [@_x, @_y]
 
     bump: ->
@@ -200,6 +205,23 @@ usefunc = (opts) ->
             opts.func[k] = v
     opts.func._useFunc = true
     opts.func
+
+class Door extends Entity
+    blocksPathFinding: false
+    blocksLight: true
+    seeInFog: true
+    bg: '#6e2311'
+    constructor: ->
+        super
+        @close()
+    close: ->
+        @level.closedDoors[@getKey()] = true
+    bump: (e) ->
+        delete @level.closedDoors[@getKey()]
+
+    hideFromLegend: true
+    char: '+'
+window.Door = Door
 
 class Item extends Entity
     useFuncs: -> (this[a] for a of this when this[a]?._useFunc)
@@ -306,8 +328,6 @@ class Player extends Entity
     constructor: ->
         @inventory = new Inventory(this)
 
-        @numFoods = 0
-
         @light = {
             color: [200, 200, 200]
         }
@@ -349,16 +369,17 @@ class Player extends Entity
         @xpMeter = @makeMeter('xp', {value: value, max: max})
 
     didLevelUp: ->
-        alert("YOU LEVELED UP TO " + @xplevel)
+        @level.addStatus("You're now at level #{@xplevel}.")
 
     die: ->
+        if GOD_MODE then return
         @level.addStatus('You died.')
         @level.lock()
         super
 
     eatFood: (food) ->
-        @numFoods += 1
-        @level.addStatus('You ate a food.')
+        @health.add(35)
+        @level.addStatus('You ate the food. (+35 self-esteem)')
 
     pickup: (item) ->
         @inventory.pickup(item)
@@ -395,7 +416,6 @@ class Player extends Entity
                 else
                     window.addEventListener('keydown', this)
 
-
         # is there a free space?
         dir = ROT.DIRS[8][action]
         if e.shiftKey
@@ -410,6 +430,15 @@ class Player extends Entity
 
     on_show_inventory: (after) ->
         showInventory(@inventory, after)
+
+    on_nextLevel: (after) ->
+        @level.switchLevel(1)
+        after(true)
+
+    on_prevLevel: (after) ->
+        if @level.depth > 1
+            @level.switchLevel(-1)
+        after(true)
 
     melee: (entity) ->
         amount = 6
@@ -513,7 +542,6 @@ class HaBullet extends Bullet
 
 class Attack
     constructor: (@entity) ->
-
 
 class Beam extends Attack
     beamWidth = 3

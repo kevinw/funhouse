@@ -4,7 +4,7 @@ RENDER_MIRRORS = true
 KEY = (x, y) ->
     return x + ',' + y
 
-COORDS = (key) ->
+window.COORDS = (key) ->
     parts = key.split(",")
     x = parseInt(parts[0])
     y = parseInt(parts[1])
@@ -32,19 +32,18 @@ class Level
         @removeActor = opts.removeActor
 
         @cells = {}
+        @closedDoors = {}
         @bgs = {}
         @fgs = {}
+
+        @depth = opts.depth
 
         @cellsByName = {}
         @entities = {}
         @mirrorSeers = []
 
-        console.time('generating floor of depth ' + opts.depth)
         @generate(opts)
-        console.timeEnd('generating floor of depth ' + opts.depth)
-
         @ambientLight = [0, 0, 0]
-
         @display = @game.display
 
     canMoveTo: (x, y, opts={}) ->
@@ -134,50 +133,116 @@ class Level
         cellList.push(key)
 
     generate: (opts) ->
-        width = 60#ROT.DEFAULT_WIDTH
-        height = ROT.DEFAULT_HEIGHT
-
-        opts.numMonsters = 4
-        opts.numFood = 10
-
-        mapInfo = @_generateDigger(width, height)
-        #mapInfo = @_generateMaze(width, height)
-        #mapInfo = @_generateRoom(width, height)
+        opts.numMonsters = Math.floor(@depth*2.5)
+        opts.numFood = Math.floor(@depth*2.4)
+        opts.numShells = Math.floor(@depth)
+        mapInfo = @_generateDigger()
         @_placeEntities(mapInfo, opts)
 
         @recalcFov()
 
-    _generateDigger: (width, height) ->
-        digger = new ROT.Map.Digger(width, height, {
-            roomWidth: [4, 14]
-            roomHeight: [4, 9]
-        })
+    _generateDigger: (opts) ->
+        @width = Math.floor(50 + (@depth-1) * 2.9)
+        @height = Math.floor(20 + (@depth-1) * 2.7)
+        @roomDugPercentage = Math.min(1, .1 + @depth*.1)
+        @roomRange = [[4, Math.floor(12+@depth/3.2)],
+                      [3, Math.floor(10+@depth/3.2)]]
+
+        mapOpts =
+            roomWidth: @roomRange[0]
+            roomHeight: @roomRange[1]
+            timeLimit: Infinity
+
+        if true
+            constructor = ROT.Map.Uniform
+            mapOpts.roomDugPercentage = @roomDugPercentage
+        else
+            constructor = ROT.Map.Digger
+            mapOpts.dugPercentage = @roomDugPercentage
+
+        digger = new constructor(@width, @height, mapOpts)
         digger.create (x, y, val) =>
             if val == 0
                 @setCell(x, y, 'floor')
         rooms = digger.getRooms()
 
+        roomInfos = []
+        @roomInfos = roomInfos
+        didMaze = false
+        for room, n in rooms
+            rect = Rect.fromRoom(room)
+            roomInfo =
+                room: room
+                rect: rect
+                area: rect.area()
+
+            roomInfos.push(roomInfo)
+            
+            if roomInfo.area > 80 and not didMaze
+                window.mazeRoom = roomInfo
+                @_generateRoomMaze(roomInfo, opts)
+                didMaze = true
+
         if true
-            mirrorRoom = rooms.random()
-            mirrorRoomRect = Rect.fromRoom(mirrorRoom)
-            y = mirrorRoomRect.y1 - 1
-            if y > 0
-                for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
-                    if not @cells[x+','+y]? and not @cells[x+','+(y-1)]?
-                        @setCell(x, y, 'downmirror')
+            for n in [0..Math.floor(ROT.RNG.getUniform() * 4)]
+                mirrorRoom = rooms.random()
+                mirrorRoomRect = Rect.fromRoom(mirrorRoom)
+                x1 = mirrorRoomRect.x1 - 1
+                x2 = mirrorRoomRect.x2 + 1
+                y1 = mirrorRoomRect.y1 - 1
+                y2 = mirrorRoomRect.y2 + 1
+                walls = [
+                    =>
+                        for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
+                            if not @cells[x+','+y1]? and not @cells[x+','+(y1-1)]?
+                                @setCell(x, y1, 'downmirror')
+
+                    =>
+                        for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
+                            if not @cells[x+','+y2]? and not @cells[x+','+(y2+1)]?
+                                @setCell(x, y2, 'upmirror')
+                    =>
+                        for y in [mirrorRoomRect.y1..mirrorRoomRect.y2]
+                            if not @cells[x1+','+y]? and not @cells[(x1-1)+','+y]?
+                                @setCell(x1, y, 'rightmirror')
+
+                    =>
+                        for y in [mirrorRoomRect.y1..mirrorRoomRect.y2]
+                            if not @cells[x2+','+y]? and not @cells[(x2+1)+','+y]?
+                                @setCell(x2, y, 'leftmirror')
+                ]
+
+                walls = walls.randomize()
+                for n in [0..Math.floor(ROT.RNG.getUniform() * walls.length)]
+                    walls[n]()
+
 
         # place walls
-        for y in [0..height]
-            for x in [0..width]
-                if not @cells[x+','+y]?
-                    left = @cells[(x-1)+','+y]
-                    right = @cells[(x+1)+'.'+y]
-                    for [dx, dy] in ROT.DIRS['8']
-                        if @cells[(x+dx)+','+(y+dy)] == cells.floor
-                            @setCell(x, y, 'plywood')
-                            break
+        if true
+            for y in [0..@height]
+                for x in [0..@width]
+                    if not @cells[x+','+y]?
+                        left = @cells[(x-1)+','+y]
+                        right = @cells[(x+1)+'.'+y]
+                        for [dx, dy] in ROT.DIRS['8']
+                            if @cells[(x+dx)+','+(y+dy)] == cells.floor
+                                @setCell(x, y, 'plywood')
+                                break
 
         return digger
+
+    _generateRoomMaze: (roomInfo, opts) ->
+        rect = roomInfo.rect
+        maze = new ROT.Map.IceyMaze(rect.width()+1, rect.height()+1, 0)
+        maze.create (x, y, val) =>
+            x = x + rect.x1
+            y = y + rect.y1
+            if val != 0 then @setCell(x, y, 'plywood')
+
+        roomInfo.room.getDoors (x, y) =>
+            for j in [y-1..y+1]
+                for i in [x-1..x+1]
+                    @setCell(i, j, 'floor')
 
     _generateMaze: (width, height) ->
         maze = new ROT.Map.EllerMaze(width, height)
@@ -237,25 +302,46 @@ class Level
         else
             @upStairsPosition = [x, y]
 
-        # place down monsters
-        for i in [0..opts.numMonsters-1]
-            [x, y] = @findFreeCell()
-            if entranceRoom != exitRoom
-                failsafe = 0
-                while entranceRoomRect.containsXY(x, y)
-                    assert((failsafe += 1) < 100)
-                    [x, y] = @findFreeCell()
-            new Monster(this, x, y)
+        if rooms.length > 1
+            rooms = rooms.slice()
+            roomsByDoorCount = {}
+            for room in rooms
+                doorCount = 0
+                room.getDoors((x, y) -> doorCount += 1)
+                roomsByDoorCount[doorCount] ?= []
+                roomsByDoorCount[doorCount].push(room)
 
-        # place food
-        for i in [0..opts.numFood-1]
-            [x, y] = @findFreeCell()
-            new Food(this, x, y)
+        if true
+            iswall = (x, y) ->
+                cell = @cells[KEY(x, y)]
+                not cell or not (cell.blocksMovement is false)
 
-        # place whelk shells
-        for i in [0..5]
-            [x, y] = @findFreeCell()
-            new WhelkShell(this, x, y)
+            # doors
+            for roomInfo in @roomInfos
+                roomInfo.room.getDoors (x, y) =>
+                    if (iswall(x-1,y) and iswall(x+1,y)) or
+                       (iswall(x,y-1) and iswall(x,y+1))
+                        return new Door(this, x, y)
+
+            # place down monsters
+            for i in [0..opts.numMonsters-1]
+                [x, y] = @findFreeCell()
+                if entranceRoom != exitRoom
+                    failsafe = 0
+                    while entranceRoomRect.containsXY(x, y)
+                        assert((failsafe += 1) < 100)
+                        [x, y] = @findFreeCell()
+                new Monster(this, x, y)
+
+            # place food
+            for i in [0..opts.numFood-1]
+                [x, y] = @findFreeCell()
+                new Food(this, x, y)
+
+            # place whelk shells
+            for i in [0..opts.numShells-1]
+                [x, y] = @findFreeCell()
+                new WhelkShell(this, x, y)
 
     entryPosition: (delta) ->
         if delta > 0
@@ -264,7 +350,10 @@ class Level
             @downStairs.position()
 
     _lightPasses: (x, y) ->
-        @cells[x+','+y]?.lightPasses
+        key = x+','+y
+        if @cells[key]?.lightPasses
+            if not @closedDoors[key]
+                return true
 
     createFOV: ->
         new ROT.FOV.DiscreteShadowcasting(((x, y) => @_lightPasses(x, y)), {topology: LIGHT_TOPOLOGY})
@@ -360,6 +449,8 @@ class Level
         for e, i in entityList
             if e == entity
                 found = entityList.splice(i, 1)
+                if entityList.length == 1 and entityList[0] instanceof Door
+                    entityList[0].close()
                 assert(found[0] == e and e == entity)
                 break
 
@@ -437,10 +528,14 @@ class Level
                             entityColor = ROT.Color.fromString(entityColor)
 
                         finalColor = multiply(finalColor, entityColor)
+                    if (entityBgColor = topEntity.bg)?
+                        if typeof(entityBgColor) == 'string'
+                            entityBgColor = ROT.Color.fromString(entityBgColor)
+                        bg = entityBgColor
                 else
                     character = cell.char
                     bg = @bgs[key] or null
-                    if bg then bg = ROT.Color.toRGB(multiply(bg, light))
+                if bg then bg = ROT.Color.toRGB(multiply(bg, light))
 
                 @display.draw(screenX, screenY, character, ROT.Color.toRGB(finalColor), bg or null, opts)
 

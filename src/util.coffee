@@ -45,6 +45,11 @@ class Rect
             y >= @y1 and
             y < @y2)
 
+    area: -> Math.abs(@x2-@x1) * Math.abs(@y2-@y1)
+
+    width: -> Math.abs(@x2-@x1)+1
+    height: -> Math.abs(@y2-@y1)+1
+
 window.Rect = Rect
 
 window.isRGB = (o) ->
@@ -113,3 +118,7 @@ window.funcOrString = (f, args...) ->
 
 window.statusColor = (color, text) -> '<span style="color: %s;">%s</span>'.format(color, text)
 
+window.range = (x1, x2, grow) ->
+    c1 = Math.min(x1) - grow
+    c2 = Math.max(x2) + grow
+    return [c1, c2]

@@ -2,6 +2,7 @@
 <html>
     <head>
         <title>funhouse</title>
+        <link href='http://fonts.googleapis.com/css?family=Inconsolata' rel='stylesheet' type='text/css'>
         <script src="lib/rot.js/rot.js"></script>
         <script src="lib/zepto.min.js"></script>
 
@@ -10,7 +11,7 @@
                 background: black;
                 color: white;
                 font-size: 12px;
-                font-family: Monaco;
+                font-family: Monaco, Consolas, Inconsolata, monospace;
             }
             #wrapper {
                width: 1000px;
@@ -114,6 +115,8 @@
 
             .shortcut-key { font-weight: bold; color: yellow; }
             .item-detail-header { color: yellow; }
+
+            #mapDebug { position: absolute; bottom: 0; right: 0; }
         </style>
     
         
@@ -135,5 +138,6 @@
             </div>
             <pre id="debug"></pre>
         </div>
+        <div id="mapDebug"></div>
     </body>
 </html>

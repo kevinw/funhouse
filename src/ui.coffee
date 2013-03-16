@@ -161,7 +161,6 @@ window.showInventory = (inventory, after) ->
     $("#game").append(invnode)
 
     onKey = (e) ->
-        console.log("ONKEY: inventory")
         keyCode = e.keyCode
         return if e.altKey
 
@@ -185,7 +184,6 @@ window.showInventory = (inventory, after) ->
     window.addEventListener('keydown', onKey)
 
 showItemDetail = (itemInfo, inventory, after) ->
-    console.log("SHOW ITEM DETAIL", itemInfo[0])
     oneItem = itemInfo[0]
 
     detailnode = $("<div>")
@@ -195,6 +193,12 @@ showItemDetail = (itemInfo, inventory, after) ->
     header = itemDescWithQuantity(itemInfo)
         .addClass('item-detail-header')
         .appendTo(detailnode)
+
+    if oneItem.inventoryDesc
+        $("<div>")
+            .addClass('item-detail-desc')
+            .html(oneItem.inventoryDesc())
+            .appendTo(detailnode)
 
     actions = $("<div>")
         .addClass('item-actions')
@@ -209,9 +213,7 @@ showItemDetail = (itemInfo, inventory, after) ->
 
             shortcutKey = label[shortcutKeyIndex]
             keycode = shortcutKey.toUpperCase().charCodeAt(0)
-            console.log(label, shortcutKey, keycode)
             actionKeycodes[keycode] = ->
-                console.log("calling", useFunc.label)
                 useFunc.call(oneItem, inventory)
 
             button = $('<div>')
@@ -224,7 +226,6 @@ showItemDetail = (itemInfo, inventory, after) ->
     $("#game").append(detailnode)
 
     onKey = (e) ->
-        console.log("ONKEY: item inventory")
         return if e.altKey
         keyCode = e.keyCode
         if keyCode == ROT.VK_ESCAPE

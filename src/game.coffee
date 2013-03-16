@@ -1,5 +1,8 @@
 'use strict'
 
+MAP_DEBUG = false
+SHOW_SEED_URL = false
+
 fades = [
     66/255,
     128/255,
@@ -51,8 +54,18 @@ class Game
 
         @statusMessages = new StatusMessages(document.getElementById('status'))
 
+        if MAP_DEBUG
+            mapDebug = $("#mapDebug")
+            @debugDisplay = new ROT.Display({fontSize: 12})
+            mapDebug.append(@debugDisplay.getContainer())
+
+            @debugDisplayInfo = $("<pre>")
+            mapDebug.append(@debugDisplayInfo)
+
+            @debugLevels = {}
+
         @display = new ROT.Display {
-            fontFamily: "Monaco" # TODO: load font
+            fontFamily: "Monaco, Consolas, Inconsolata, monospace"
             fontSize: 21
             spacing: 1.1
             width: @displaywidth
@@ -85,11 +98,34 @@ class Game
             opts.addActor = (actor) => @engine.addActor(actor)
             opts.removeActor = (actor) => @engine.removeActor(actor)
             opts.depth = @levelDepth
+            if @debugDisplay?
+                @debugLevels[@levelDepth] = []
+                opts.debugCreate = (x, y, val) =>
+                    @debugLevels[@levelDepth].push([x, y, val])
 
             @level = new Level(this, opts)
             @levels[@levelDepth] = @level
         else
             @level.wakeUpActors()
+
+        if @debugDisplay?
+            @debugDisplay.clear()
+            @debugDisplay.setOptions(
+                width: @level.width
+                height: @level.height
+            )
+
+            #for [x, y, val] in @debugLevels[@levelDepth]
+                #@debugDisplay.DEBUG(x, y, val)
+            for key, cell of @level.cells
+                [x, y] = COORDS(key)
+                if cell and cell.blocksMovement == false
+                    @debugDisplay.DEBUG(x, y, 1)
+
+
+            @debugDisplayInfo.text("""Level is #{@level.width}x#{@level.height} at depth #{@levelDepth} with #{@level.roomInfos.length} rooms
+                                        dugPercentage: #{@level.roomDugPercentage}
+                                        roomRange: #{@level.roomRange}""")
 
         [x, y] = @level.entryPosition(delta)
 
@@ -102,6 +138,7 @@ class Game
         @level.setCamera(@camera)
 
         @display.clear()
+
 
     addStatus: (msg) ->
         @statusMessages.addStatus(msg)
@@ -124,5 +161,6 @@ setupRandom = ->
     if (seed = queryInt('seed'))?
         ROT.RNG.setSeed(seed)
 
-    url = "http://localhost/?seed=" + ROT.RNG.getSeed()
-    $("#debug").append($("<a>").attr('href', url).text(url))
+    if SHOW_SEED_URL
+        url = "http://localhost/?seed=" + ROT.RNG.getSeed()
+        $("#debug").append($("<a>").attr('href', url).text(url))
