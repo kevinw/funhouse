@@ -1,5 +1,13 @@
+# BEWARE OF SHITTY DOM CONSTRUCTION CODE
+
+$ = Zepto
+
 uiConstants =
     shakeEffectDuration: 400
+
+legendLabel = (entity, prop) ->
+    label = prop.label
+    if typeof(label) == 'string' then label else label(entity)
 
 props =
     bar: (entity, prop, parentNode) ->
@@ -23,10 +31,13 @@ props =
         if not node.length
             node = $("<div>").addClass('progress').addClass(classname)
             bar = $("<div>").addClass('bar').appendTo(node)
-            text = $("<div>").addClass('text').text(prop.label).appendTo(node)
+            text = $("<div>").addClass('text').appendTo(node)
             wasNew = true
         else
             bar = node.children('.bar')
+            text = node.children('.text')
+
+        text.text(legendLabel(entity, prop))
 
         if prop.color?
             bar.css('background', prop.color)
@@ -44,21 +55,33 @@ removeAllChildren = (node) ->
     while node.childNodes.length
         node.removeChild(node.childNodes[0])
 
-window.updateLegendNodeForEntity = (node, entity) ->
-    #while node.childNodes.length
-        #node.removeChild(node.childNodes[0])
+updateEntityStatus = (node, entity) ->
+    node = $(node)
 
+    if not state = entity.state
+        return node.children('.entity-state').remove()
+
+    if (stateNode = node.children('.entity-state')).length == 0
+        stateNode = $("<div>").addClass('entity-state')
+
+    stateNode.appendTo(node)
+
+    stateNode.text('(%s)'.format(state))
+
+entitySpan = (entity) ->
+    charSpan = document.createElement('span')
+    if entity.color
+        charSpan.setAttribute('style', 'color: %s;'.format(entity.color))
+    charSpan.textContent = entity.char;
+    charSpan
+
+window.updateLegendNodeForEntity = (node, entity) ->
     header = $(node).children('.entity-header')
     if not header.length
         header = $("<div>").addClass('entity-header').appendTo(node)
 
     removeAllChildren(header[0])
-
-    charSpan = document.createElement('span')
-    if entity.color
-        charSpan.setAttribute('style', 'color: %s;'.format(entity.color))
-    charSpan.textContent = entity.char;
-    header.append(charSpan)
+    header.append(entitySpan(entity))
 
     headerText = ": %s".format(entity.legendDesc or entity.constructor.name)
     header.append(document.createTextNode(headerText))
@@ -77,6 +100,8 @@ window.updateLegendNodeForEntity = (node, entity) ->
         node.appendChild(propNode)
         if later then setTimeout(later, 0)
 
+    updateEntityStatus(node, entity)
+
 window.updateLegendNodes = (legendNode, entitiesToShow) ->
     allNodes = $(legendNode).children('div')
 
@@ -94,6 +119,149 @@ window.updateLegendNodes = (legendNode, entitiesToShow) ->
     toDelete = (n for n in legendNode.children when not seen[n.getAttribute('id')])
     legendNode.removeChild(n) for n in toDelete
 
+sortedBucketed = (items) ->
+    byClass = {}
+    bucketed = []
+    for item in items
+        if not byClass[item.constructor.name]?
+            bucketed.push(byClass[item.constructor.name] = [])
+
+        classItems = byClass[item.constructor.name]
+        classItems.push(item)
+
+    bucketed
+
+window.showInventory = (inventory, after) ->
+    invnode = $("<div>")
+        .attr('id', 'inventory')
+        .addClass('dialog')
+
+    letterCode = 'A'.charCodeAt(0)
+    bucketedItems = sortedBucketed(inventory.items)
+    itemsByLetter = {}
+    for itemInfo in bucketedItems
+        letter = String.fromCharCode(letterCode).toLowerCase()
+        itemsByLetter[letterCode] = itemInfo
+        $("<div>")
+            .addClass("inv-item")
+            .text('%s) '.format(letter))
+            .append(inventoryText(itemInfo))
+            .appendTo(invnode)
+
+        letterCode += 1
+
+    if not bucketedItems.length
+        $("<span>").text('(Your pockets are empty.)').appendTo(invnode)
+
+    $(invnode).append(
+        $("<div>")
+            .addClass('inv-escape')
+            .text('ESC) close inventory'))
+
+    $("#game").append(invnode)
+
+    onKey = (e) ->
+        keyCode = e.keyCode
+        return if e.altKey
+
+        if keyCode == ROT.VK_ESCAPE or keyCode == ROT.VK_I
+            dismiss()
+        else if item = itemsByLetter[keyCode]
+            window.removeEventListener('keydown', onKey)
+            showItemDetail(item, inventory, (closeInventory) ->
+                window.addEventListener('keydown', onKey)
+                if closeInventory then dismiss(true))
+        else
+            return
+
+        e.preventDefault()
+
+    dismiss = (takeTurn) ->
+        window.removeEventListener('keydown', onKey)
+        invnode.remove()
+        after(takeTurn)
+
+    window.addEventListener('keydown', onKey)
+
+showItemDetail = (itemInfo, inventory, after) ->
+    oneItem = itemInfo[0]
+
+    detailnode = $("<div>")
+        .attr('id', 'item-detail')
+        .addClass('dialog')
+
+    header = itemDescWithQuantity(itemInfo)
+        .addClass('item-detail-header')
+        .appendTo(detailnode)
+
+    if oneItem.inventoryDesc
+        $("<div>")
+            .addClass('item-detail-desc')
+            .html(oneItem.inventoryDesc())
+            .appendTo(detailnode)
+
+    actions = $("<div>")
+        .addClass('item-actions')
+        .appendTo(detailnode)
+
+    actionKeycodes = {}
+
+    for useFunc in oneItem.useFuncs()
+        do (useFunc) ->
+            label = useFunc.label
+            shortcutKeyIndex = 0
+
+            shortcutKey = label[shortcutKeyIndex]
+            keycode = shortcutKey.toUpperCase().charCodeAt(0)
+            actionKeycodes[keycode] = ->
+                useFunc.call(oneItem, inventory)
+
+            button = $('<div>')
+                .addClass('item-action')
+                .appendTo(actions)
+                .append(document.createTextNode(label.substr(0, shortcutKeyIndex)))
+                .append($("<span>").addClass('shortcut-key').text(shortcutKey))
+                .append(document.createTextNode(label.substr(shortcutKeyIndex+1)))
+        
+    $("#game").append(detailnode)
+
+    onKey = (e) ->
+        return if e.altKey
+        keyCode = e.keyCode
+        if keyCode == ROT.VK_ESCAPE
+            dismiss()
+        else if (cb = actionKeycodes[keyCode])
+            cb()
+            dismiss(true)
+        else
+            return
+
+        e.preventDefault()
+
+    dismiss = (closeInventory) ->
+        window.removeEventListener('keydown', onKey)
+        detailnode.remove()
+        after(closeInventory)
+
+    window.addEventListener('keydown', onKey)
+
+itemDescWithQuantity = (itemInfo) ->
+    oneItem = itemInfo[0]
+    quantity = itemInfo.length
+    span = $("<span>").text(oneItem.statusDesc())
+    if quantity > 1
+        span.append(document.createTextNode(' '))
+        span.append($("<span>")
+                        .addClass('inv-quantity')
+                        .text('<%s>'.format(quantity)))
+    span
 
 
+inventoryText = (itemInfo) ->
+    oneItem = itemInfo[0]
 
+    span = $("<span>")
+    span.append(entitySpan(oneItem))
+    span.append(document.createTextNode(' '))
+    span.append(itemDescWithQuantity(itemInfo))
+    span
