@@ -522,8 +522,7 @@ class Level
                     topEntity = entityList[entityList.length-1]
                     character = topEntity.charFunc(x, y)
                     opts = if topEntity.drawOpts then topEntity.drawOpts() else undefined
-                    entityColor = topEntity.color
-                    if entityColor?
+                    if (entityColor = topEntity.color)?
                         if typeof(entityColor) == 'string'
                             entityColor = ROT.Color.fromString(entityColor)
 
@@ -591,9 +590,12 @@ class Level
                         if drawx >= @camera.width or drawy >= @camera.height or drawx < 0 or drawy < 0
                             break
                     
-                        [x, y, ch, fg, bg] = args
+                        args = args.slice()
+                        args[0] = drawx
+                        args[1] = drawy
+
                         cell = @cells[@camera.getWorldKey(x, y)]
-                        @display.draw(drawx, drawy, ch, fg, bg)
+                        @display.draw(args...)
 
                         if (rayXDelta < 0 and cell == cells.rightmirror) or 
                            (rayXDelta > 0 and cell == cells.leftmirror)

@@ -1,7 +1,6 @@
 'use strict'
 
 MAP_DEBUG = false
-SHOW_SEED_URL = false
 
 fades = [
     66/255,
@@ -44,9 +43,7 @@ class Game
     ananas: null
     actors: []
 
-    constructor: ->
-        setupRandom()
-
+    constructor: ({@seed}) ->
         @turn = 0
 
         @displaywidth = 50
@@ -155,12 +152,7 @@ class Game
     unlock: ->
         @engine.unlock()
 
-window.Game = Game
+#url = "http://localhost/?seed=" + ROT.RNG.getSeed()
+#$("#debug").append($("<a>").attr('href', url).text(url))
 
-setupRandom = ->
-    if (seed = queryInt('seed'))?
-        ROT.RNG.setSeed(seed)
 
-    if SHOW_SEED_URL
-        url = "http://localhost/?seed=" + ROT.RNG.getSeed()
-        $("#debug").append($("<a>").attr('href', url).text(url))
