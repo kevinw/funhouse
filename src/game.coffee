@@ -1,5 +1,3 @@
-'use strict'
-
 MAP_DEBUG = false
 
 fades = [

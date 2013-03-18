@@ -6,5 +6,5 @@ onDocumentReady = ->
 
     window.game = new Game({seed: seed})
 
-$(onDocumentReady)
+Zepto(onDocumentReady)
 

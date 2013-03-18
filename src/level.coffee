@@ -1,5 +1,6 @@
 LIGHT_TOPOLOGY = 8
 RENDER_MIRRORS = true
+USE_UNIFORM = true
 
 KEY = (x, y) ->
     return x + ',' + y
@@ -155,7 +156,7 @@ class Level
             roomHeight: @roomRange[1]
             timeLimit: Infinity
 
-        if true
+        if USE_UNIFORM
             constructor = ROT.Map.Uniform
             mapOpts.roomDugPercentage = @roomDugPercentage
         else
@@ -313,40 +314,43 @@ class Level
                 roomsByDoorCount[doorCount] ?= []
                 roomsByDoorCount[doorCount].push(room)
 
-        if true
-            iswall = (x, y) ->
-                cell = @cells[KEY(x, y)]
-                not cell or not (cell.blocksMovement is false)
+        iswall = (x, y) ->
+            cell = @cells[KEY(x, y)]
+            not cell or not (cell.blocksMovement is false)
 
-            # doors
-            for roomInfo in @roomInfos
-                roomInfo.room.getDoors (x, y) =>
-                    if (iswall(x-1,y) and iswall(x+1,y)) or
-                       (iswall(x,y-1) and iswall(x,y+1))
-                        return new Door(this, x, y)
+        # doors
+        didDoorAt = {}
+        for roomInfo in @roomInfos
+            roomInfo.room.getDoors (x, y) =>
+                if (iswall(x-1,y) and iswall(x+1,y)) or
+                   (iswall(x,y-1) and iswall(x,y+1))
+                    key = KEY(x,y)
+                    if not didDoorAt[key]
+                        didDoorAt[key] = true
+                        new Door(this, x, y)
 
-            # place down monsters
-            for i in [0..opts.numMonsters-1]
-                [x, y] = @findFreeCell()
-                if entranceRoom != exitRoom
-                    failsafe = 0
-                    while entranceRoomRect.containsXY(x, y)
-                        assert((failsafe += 1) < 100)
-                        [x, y] = @findFreeCell()
-                new Monster(this, x, y)
-
-            # place food
-            for i in [0..opts.numFood-1]
-                [x, y] = @findFreeCell()
-                new Food(this, x, y)
-
-            # place whelk shells
-            for i in [0..opts.numShells-1]
-                [x, y] = @findFreeCell()
-                new WhelkShell(this, x, y)
-
+        # place down monsters
+        for i in [0..opts.numMonsters-1]
             [x, y] = @findFreeCell()
-            new NPC(this, x, y)
+            if entranceRoom != exitRoom
+                failsafe = 0
+                while entranceRoomRect.containsXY(x, y)
+                    assert((failsafe += 1) < 100)
+                    [x, y] = @findFreeCell()
+            new Monster(this, x, y)
+
+        # place food
+        for i in [0..opts.numFood-1]
+            [x, y] = @findFreeCell()
+            new Food(this, x, y)
+
+        # place whelk shells
+        for i in [0..opts.numShells-1]
+            [x, y] = @findFreeCell()
+            new WhelkShell(this, x, y)
+
+        [x, y] = @findFreeCell()
+        new NPC(this, x, y)
 
     entryPosition: (delta) ->
         if delta > 0
@@ -538,7 +542,7 @@ class Level
                             entityBgColor = ROT.Color.fromString(entityBgColor)
                         bg = entityBgColor
                 else
-                    character = cell.char
+                    character = cell.character
                     bg = @bgs[key] or null
                 if bg then bg = ROT.Color.toRGB(multiply(bg, light))
 

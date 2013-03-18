@@ -1,5 +1,3 @@
-'use strict'
-
 GOD_MODE = false
 ALLOW_LEVEL_JUMPING = false
 
@@ -111,7 +109,7 @@ class Entity extends EventDispatcher
 
         @level.addEntity(this, @_x, @_y)
 
-    charFunc: (x, y) -> @char
+    charFunc: (x, y) -> @character
 
     triggerEffect: (name, value) ->
         @effect ?= {}
@@ -203,7 +201,7 @@ class Door extends Entity
         delete @level.closedDoors[@getKey()]
 
     hideFromLegend: true
-    char: '+'
+    character: '+'
 window.Door = Door
 
 class Item extends Entity
@@ -220,9 +218,11 @@ class Pickup extends Item
         entity.pickup?(this)
 
 class Food extends Pickup
+    itemSort: 'food'
     statusDesc: -> 'food'
+    legendDesc: 'Food'
     inventoryDesc: -> 'Some food. Boosts your self-esteem.'
-    char: '%'
+    character: '%'
     color: 'red'
     eat: usefunc
         label: 'eat'
@@ -233,8 +233,10 @@ class Food extends Pickup
 window.Food = Food
 
 class WhelkShell extends Pickup
+    itemSort: 'whelk'
+    legendDesc: 'Whelk Shell'
     statusDesc: -> 'whelk shell'
-    char: 'W'
+    character: 'W'
     inventoryDesc: ->
         'A sprial shell, the kind you put up to your ear to hear the ocean.'
     constructor: ->
@@ -261,12 +263,12 @@ class Stairs extends Entity
         entity.climbStairs?(this)
 
 class DownStairs extends Stairs
-    char: '>'
+    character: '>'
     delta: 1
     legendDesc: 'Stairs Down'
 
 class UpStairs extends Stairs
-    char: '<'
+    character: '<'
     delta: -1
     legendDesc: 'Stairs Up'
 
@@ -300,7 +302,7 @@ class Player extends Entity
     toString: -> '<Player>'
     color: '#ff0'
     statusDesc: -> 'you'
-    char: '@'
+    character: '@'
 
     legendDesc: 'You'
     legendProps: [{type: 'bar', meter: 'health', label: 'Self-esteem', color: constants.selfEsteemColor},
@@ -515,7 +517,7 @@ class Bullet extends Entity
             @die()
 
 class HaBullet extends Bullet
-    char: '*'
+    character: '*'
     getSpeed: -> constants.playerSpeed * constants.hahaSpeedMultipler
     drawOpts: ->
         jiggle: [ROT.RNG.getUniform() * 4 - 2, ROT.RNG.getUniform() * 4 - 2]
@@ -556,7 +558,8 @@ class Beam extends Attack
             return true
 
 class NPC extends Entity
-    char: '☹'
+    character: '☹'
+    legendDesc: 'Man on Stool'
     preBump: (e) ->
         if e.group == 'players'
             e.level.addStatus('What are you doing in here alone?')
@@ -568,7 +571,7 @@ window.NPC = NPC
 class Monster extends Entity
     needsThe: true
     hostile: true
-    char: "C"
+    character: "C"
     sightRadius: 15
     legendDesc: 'Evil Clown'
     legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]

@@ -11,37 +11,37 @@ mirrorBumpFunc = (entity) ->
 
 cells =
     floor:
-        char: '·'
+        character: '·'
         reflectivity: 0.3
         lightPasses: true
         blocksMovement: false
 
     plywood:
         reflectivity: 0.1
-        char: '#'
+        character: '#'
         bg: ['#965922', '#a66a22', '#8b4a14', '#af6e2a']
         fg: '#2d0a04'
         bump: 'The plywood is firm and unyielding.'
 
     rightmirror:
         reflectivity: 0.1
-        char: '|'
+        character: '|'
         bumpFunc: mirrorBumpFunc
     leftmirror:
         reflectivity: 0.1
-        char: '|'
+        character: '|'
         bumpFunc: mirrorBumpFunc
     upmirror:
         reflectivity: 0.1
-        char: '-'
+        character: '-'
         bumpFunc: mirrorBumpFunc
     downmirror:
         reflectivity: 0.1
-        char: '-'
+        character: '-'
         bumpFunc: mirrorBumpFunc
     fourmirror:
         reflectivity: 0.1
-        char: '©'
+        character: '©'
         bumpFunc: mirrorBumpFunc
         
 
