@@ -11,6 +11,7 @@ mirrorBumpFunc = (entity) ->
 
 cells =
     floor:
+        #character: '╳'
         character: '·'
         reflectivity: 0.3
         lightPasses: true
@@ -33,11 +34,11 @@ cells =
         bumpFunc: mirrorBumpFunc
     upmirror:
         reflectivity: 0.1
-        character: '-'
+        character: '═'
         bumpFunc: mirrorBumpFunc
     downmirror:
         reflectivity: 0.1
-        character: '-'
+        character: '═'
         bumpFunc: mirrorBumpFunc
     fourmirror:
         reflectivity: 0.1

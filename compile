@@ -1,3 +1,0 @@
-#!/bin/bash
-
-coffee --lint --map --compile --watch src

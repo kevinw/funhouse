@@ -33,17 +33,6 @@ class StatusMessages
             node.setAttribute('style', 'opacity: %s;'.format(fade))
 
 class Game
-    display: null
-    map: {}
-    engine: null
-    player: null
-    pedro: null
-    ananas: null
-    actors: []
-
-    url: ->
-        window.location.origin + "/?seed=#{@seed}"
-
     constructor: ({@seed}) ->
         @turn = 0
 
@@ -83,6 +72,9 @@ class Game
         @addStatus('Good luck!')
 
         @engine.start()
+
+    url: ->
+        window.location.origin + "/?seed=#{@seed}"
 
     switchLevel: (delta, opts) ->
         @levelDepth += delta
