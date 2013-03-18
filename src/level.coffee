@@ -4,6 +4,8 @@ RENDER_MIRRORS = true
 KEY = (x, y) ->
     return x + ',' + y
 
+window.BUMP_CANCEL_MOVE = {}
+
 window.COORDS = (key) ->
     parts = key.split(",")
     x = parseInt(parts[0])
@@ -177,7 +179,7 @@ class Level
                 area: rect.area()
 
             roomInfos.push(roomInfo)
-            
+
             if roomInfo.area > 80 and not didMaze
                 window.mazeRoom = roomInfo
                 @_generateRoomMaze(roomInfo, opts)
@@ -343,6 +345,9 @@ class Level
                 [x, y] = @findFreeCell()
                 new WhelkShell(this, x, y)
 
+            [x, y] = @findFreeCell()
+            new NPC(this, x, y)
+
     entryPosition: (delta) ->
         if delta > 0
             @upStairs?.position() or @upStairsPosition
@@ -362,7 +367,7 @@ class Level
         @fov = new ROT.FOV.PreciseShadowcasting(((x, y) => @_lightPasses(x, y)), {topology: LIGHT_TOPOLOGY})
 
     calcLightData: ->
-        reflectivity = (x, y) => 
+        reflectivity = (x, y) =>
             @cells[x+','+y]?.reflectivity or 0
 
         lighting = new ROT.Lighting(reflectivity, {range: constants.playerSightRadius, passes: constants.lightPasses})
@@ -394,7 +399,7 @@ class Level
             )
 
         undefined
-    
+
     visibleEntities: -> @_visibleEntities or []
 
     awardXp: (opts) ->
@@ -419,19 +424,20 @@ class Level
             @addActor(entity)
             if entity.seesMirrors then @mirrorSeers.push(entity)
 
+        cancelled = false
         if not opts.skipBump
             for otherEntity in entityList.slice()
                 if otherEntity != entity
-                    entity.bump(otherEntity, opts)
-                    otherEntity.bump(entity, opts)
+                    cancelled |= entity.bump(otherEntity, opts) is BUMP_CANCEL_MOVE
+                    cancelled |= otherEntity.bump(entity, opts) is BUMP_CANCEL_MOVE
 
             for b in entityList.slice()
                 if b != entity
                     b.afterBump(entity, opts)
                     entity.afterBump(b, opts)
 
-        undefined
-
+        if cancelled
+            BUMP_CANCEL_MOVE
 
     moveEntity: (entity, x, y) ->
         @removeEntity(entity, {removeActor: false})
@@ -572,7 +578,7 @@ class Level
                     dy = 0
                     rayX = 0
                     rayY = 0
-            
+
                     while true
                         dx += xDelta
                         dy += yDelta
@@ -589,7 +595,7 @@ class Level
                         [drawx, drawy] = @camera.getScreenCoords(mirrorx + dx, mirrory + dy)
                         if drawx >= @camera.width or drawy >= @camera.height or drawx < 0 or drawy < 0
                             break
-                    
+
                         args = args.slice()
                         args[0] = drawx
                         args[1] = drawy
@@ -597,7 +603,7 @@ class Level
                         cell = @cells[@camera.getWorldKey(x, y)]
                         @display.draw(args...)
 
-                        if (rayXDelta < 0 and cell == cells.rightmirror) or 
+                        if (rayXDelta < 0 and cell == cells.rightmirror) or
                            (rayXDelta > 0 and cell == cells.leftmirror)
                             rayXDelta = -rayXDelta
                         if (rayYDelta < 0 and cell == cells.downmirror) or

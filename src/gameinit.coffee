@@ -4,7 +4,7 @@ onDocumentReady = ->
 
     ROT.RNG.setSeed(seed)
 
-    new Game({seed: seed})
+    window.game = new Game({seed: seed})
 
 $(onDocumentReady)
 

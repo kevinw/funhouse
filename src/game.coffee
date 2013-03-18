@@ -43,6 +43,9 @@ class Game
     ananas: null
     actors: []
 
+    url: ->
+        window.location.origin + "/?seed=#{@seed}"
+
     constructor: ({@seed}) ->
         @turn = 0
 
@@ -151,6 +154,8 @@ class Game
 
     unlock: ->
         @engine.unlock()
+
+window.Game = Game
 
 #url = "http://localhost/?seed=" + ROT.RNG.getSeed()
 #$("#debug").append($("<a>").attr('href', url).text(url))

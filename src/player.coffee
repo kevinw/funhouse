@@ -6,7 +6,7 @@ ALLOW_LEVEL_JUMPING = false
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
-xpForNextLevel = (level) -> 
+xpForNextLevel = (level) ->
     Math.ceil(Math.pow(1.6, level) * 3) - 3
 
 idleStatuses = [
@@ -17,23 +17,6 @@ idleStatuses = [
 
 enemyStates =
     hunting: 'Hunting'
-
-window.constants =
-    lightPasses: 1
-    playerSightRadius: 20
-    playerSpeed: 100
-    hahaSpeedMultipler: 2
-    sprintMeleeMultiplier: 2
-    sprintDistance: 3
-    sprintStepBreathCost: 10
-    meleeBreathCost: 6
-    breathRecoveryStep: 1
-    idleStatusChance: .001
-
-    selfEsteemColor: '#0000aa'
-
-    imaginationColor: '#880055'
-    mirrorImaginationCost: 10
 
 controls = {
     # numpad
@@ -341,7 +324,7 @@ class Player extends Entity
         @_updateXP()
 
         super
-        
+
     awardXp: (info) ->
         if typeof(info.xp) != 'number'
             console.log("ERROR: expected info.xp to be a number, got " + typeof(info.xp))
@@ -463,17 +446,22 @@ class Player extends Entity
                     skipBumpMsg = true
             if not skipBumpMsg and moveInfo.bump?
                 @level.addStatus(moveInfo.bump)
-        else if (entities = @level.hostilesAtCell(x, y)).length
-            for entity in entities
-                @melee(entity, opts)
-                break
-        else
-            @level.moveEntity(this, x, y)
-            @breath.add(constants.breathRecoveryStep)
-            if ROT.RNG.getUniform() < constants.idleStatusChance
-                @showIdleStatus()
+            return
 
-            return true
+        else if (entities = @level.entitiesAtCell(x, y)).length
+            for entity in entities
+                if entity.hostile
+                    @melee(entity, opts)
+                    return
+                else if entity.preBump?(this, opts) == BUMP_CANCEL_MOVE
+                    return
+
+        @level.moveEntity(this, x, y)
+        @breath.add(constants.breathRecoveryStep)
+        if ROT.RNG.getUniform() < constants.idleStatusChance
+            @showIdleStatus()
+
+        return true
 
     showIdleStatus: ->
         if idleStatuses.length
@@ -566,6 +554,16 @@ class Beam extends Attack
         if entityInfo.lengthTo > 3 and entity.getX() == @entity.getX() or entity.getY() == @entity.getY()
             @fire(entityInfo.closestCardinalTo)
             return true
+
+class NPC extends Entity
+    char: '☹'
+    preBump: (e) ->
+        if e.group == 'players'
+            e.level.addStatus('What are you doing in here alone?')
+            return BUMP_CANCEL_MOVE
+
+
+window.NPC = NPC
 
 class Monster extends Entity
     needsThe: true
