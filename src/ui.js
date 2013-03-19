@@ -90,7 +90,7 @@
     if (entity.color) {
       charSpan.setAttribute('style', 'color: %s;'.format(entity.color));
     }
-    charSpan.textContent = entity.char;
+    charSpan.textContent = entity.charFunc(1, 1);
     return charSpan;
   };
 
@@ -159,15 +159,17 @@
   };
 
   sortedBucketed = function(items) {
-    var bucketed, byClass, classItems, item, _i, _len;
+    var bucketed, byClass, classItems, item, key, _i, _len;
     byClass = {};
     bucketed = [];
     for (_i = 0, _len = items.length; _i < _len; _i++) {
       item = items[_i];
-      if (byClass[item.constructor.name] == null) {
-        bucketed.push(byClass[item.constructor.name] = []);
+      assert(item.itemSort);
+      key = item.itemSort;
+      if (byClass[key] == null) {
+        bucketed.push(byClass[key] = []);
       }
-      classItems = byClass[item.constructor.name];
+      classItems = byClass[key];
       classItems.push(item);
     }
     return bucketed;
