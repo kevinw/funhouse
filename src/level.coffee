@@ -1,8 +1,12 @@
 LIGHT_TOPOLOGY = 8
 RENDER_MIRRORS = true
+DRAW_DEBUG = false
+USE_UNIFORM = true
 
 KEY = (x, y) ->
     return x + ',' + y
+
+window.BUMP_CANCEL_MOVE = {}
 
 window.COORDS = (key) ->
     parts = key.split(",")
@@ -28,19 +32,22 @@ class Level
     constructor: (@game, opts) ->
         opts ?= {}
 
-        @addActor = opts.addActor
-        @removeActor = opts.removeActor
-
         @cells = {}
         @closedDoors = {}
         @bgs = {}
         @fgs = {}
-
-        @depth = opts.depth
+        @chars = {}
+        @debug = {}
+        @fog = {}
 
         @cellsByName = {}
         @entities = {}
         @mirrorSeers = []
+
+        @addActor = opts.addActor
+        @removeActor = opts.removeActor
+
+        @depth = opts.depth
 
         @generate(opts)
         @ambientLight = [0, 0, 0]
@@ -137,6 +144,7 @@ class Level
         opts.numFood = Math.floor(@depth*2.4)
         opts.numShells = Math.floor(@depth)
         mapInfo = @_generateDigger()
+        @_paint()
         @_placeEntities(mapInfo, opts)
 
         @recalcFov()
@@ -153,7 +161,7 @@ class Level
             roomHeight: @roomRange[1]
             timeLimit: Infinity
 
-        if true
+        if USE_UNIFORM
             constructor = ROT.Map.Uniform
             mapOpts.roomDugPercentage = @roomDugPercentage
         else
@@ -177,7 +185,7 @@ class Level
                 area: rect.area()
 
             roomInfos.push(roomInfo)
-            
+
             if roomInfo.area > 80 and not didMaze
                 window.mazeRoom = roomInfo
                 @_generateRoomMaze(roomInfo, opts)
@@ -195,21 +203,21 @@ class Level
                     =>
                         for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
                             if not @cells[x+','+y1]? and not @cells[x+','+(y1-1)]?
-                                @setCell(x, y1, 'downmirror')
+                                @setCell(x, y1, 'fourmirror')
 
                     =>
                         for x in [mirrorRoomRect.x1..mirrorRoomRect.x2]
                             if not @cells[x+','+y2]? and not @cells[x+','+(y2+1)]?
-                                @setCell(x, y2, 'upmirror')
+                                @setCell(x, y2, 'fourmirror')
                     =>
                         for y in [mirrorRoomRect.y1..mirrorRoomRect.y2]
                             if not @cells[x1+','+y]? and not @cells[(x1-1)+','+y]?
-                                @setCell(x1, y, 'rightmirror')
+                                @setCell(x1, y, 'fourmirror')
 
                     =>
                         for y in [mirrorRoomRect.y1..mirrorRoomRect.y2]
                             if not @cells[x2+','+y]? and not @cells[(x2+1)+','+y]?
-                                @setCell(x2, y, 'leftmirror')
+                                @setCell(x2, y, 'fourmirror')
                 ]
 
                 walls = walls.randomize()
@@ -230,6 +238,25 @@ class Level
                                 break
 
         return digger
+
+    getNeighbors: (x, y) ->
+        neighbors = []
+        for [dx, dy], dir in ROT.DIRS['4']
+            neighbors.push(@cells[(x+dx)+','+(y+dy)])
+        neighbors
+
+    _paint: ->
+        names =
+            fourmirror: 'd'
+
+        for key in @cellsByName['fourmirror']
+            [x, y] = COORDS(key)
+            cell = @cells[key]
+            neighbors = @getNeighbors(x, y)
+
+            desc = (names[n?.name] or '_' for n in neighbors).join('')
+            if (character = BoxDrawing.symbolLookups[desc])?
+                @chars[key] = character
 
     _generateRoomMaze: (roomInfo, opts) ->
         rect = roomInfo.rect
@@ -311,37 +338,43 @@ class Level
                 roomsByDoorCount[doorCount] ?= []
                 roomsByDoorCount[doorCount].push(room)
 
-        if true
-            iswall = (x, y) ->
-                cell = @cells[KEY(x, y)]
-                not cell or not (cell.blocksMovement is false)
+        iswall = (x, y) ->
+            cell = @cells[KEY(x, y)]
+            not cell or not (cell.blocksMovement is false)
 
-            # doors
-            for roomInfo in @roomInfos
-                roomInfo.room.getDoors (x, y) =>
-                    if (iswall(x-1,y) and iswall(x+1,y)) or
-                       (iswall(x,y-1) and iswall(x,y+1))
-                        return new Door(this, x, y)
+        # doors
+        didDoorAt = {}
+        for roomInfo in @roomInfos
+            roomInfo.room.getDoors (x, y) =>
+                if (iswall(x-1,y) and iswall(x+1,y)) or
+                   (iswall(x,y-1) and iswall(x,y+1))
+                    key = KEY(x,y)
+                    if not didDoorAt[key]
+                        didDoorAt[key] = true
+                        new Door(this, x, y)
 
-            # place down monsters
-            for i in [0..opts.numMonsters-1]
-                [x, y] = @findFreeCell()
-                if entranceRoom != exitRoom
-                    failsafe = 0
-                    while entranceRoomRect.containsXY(x, y)
-                        assert((failsafe += 1) < 100)
-                        [x, y] = @findFreeCell()
-                new Monster(this, x, y)
+        # place down monsters
+        for i in [0..opts.numMonsters-1]
+            [x, y] = @findFreeCell()
+            if entranceRoom != exitRoom
+                failsafe = 0
+                while entranceRoomRect.containsXY(x, y)
+                    assert((failsafe += 1) < 100)
+                    [x, y] = @findFreeCell()
+            new Monster(this, x, y)
 
-            # place food
-            for i in [0..opts.numFood-1]
-                [x, y] = @findFreeCell()
-                new Food(this, x, y)
+        # place food
+        for i in [0..opts.numFood-1]
+            [x, y] = @findFreeCell()
+            new Food(this, x, y)
 
-            # place whelk shells
-            for i in [0..opts.numShells-1]
-                [x, y] = @findFreeCell()
-                new WhelkShell(this, x, y)
+        # place whelk shells
+        for i in [0..opts.numShells-1]
+            [x, y] = @findFreeCell()
+            new WhelkShell(this, x, y)
+
+        [x, y] = @findFreeCell()
+        new NPC(this, x, y)
 
     entryPosition: (delta) ->
         if delta > 0
@@ -362,7 +395,7 @@ class Level
         @fov = new ROT.FOV.PreciseShadowcasting(((x, y) => @_lightPasses(x, y)), {topology: LIGHT_TOPOLOGY})
 
     calcLightData: ->
-        reflectivity = (x, y) => 
+        reflectivity = (x, y) =>
             @cells[x+','+y]?.reflectivity or 0
 
         lighting = new ROT.Lighting(reflectivity, {range: constants.playerSightRadius, passes: constants.lightPasses})
@@ -394,7 +427,7 @@ class Level
             )
 
         undefined
-    
+
     visibleEntities: -> @_visibleEntities or []
 
     awardXp: (opts) ->
@@ -419,19 +452,20 @@ class Level
             @addActor(entity)
             if entity.seesMirrors then @mirrorSeers.push(entity)
 
+        cancelled = false
         if not opts.skipBump
             for otherEntity in entityList.slice()
                 if otherEntity != entity
-                    entity.bump(otherEntity, opts)
-                    otherEntity.bump(entity, opts)
+                    cancelled |= entity.bump(otherEntity, opts) is BUMP_CANCEL_MOVE
+                    cancelled |= otherEntity.bump(entity, opts) is BUMP_CANCEL_MOVE
 
             for b in entityList.slice()
                 if b != entity
                     b.afterBump(entity, opts)
                     entity.afterBump(b, opts)
 
-        undefined
-
+        if cancelled
+            BUMP_CANCEL_MOVE
 
     moveEntity: (entity, x, y) ->
         @removeEntity(entity, {removeActor: false})
@@ -471,13 +505,12 @@ class Level
 
     draw: ->
         @display.clear()
-        @fog ?= {}
         lightData = @calcLightData()
         @calcVisible()
 
+        Color = ROT.Color
         add = ROT.Color.add
         multiply = ROT.Color.multiply
-        baseColor = null
 
         camRect = @camera.getRect()
         for y in [camRect.y1..camRect.y2]
@@ -509,9 +542,6 @@ class Level
                 dynamicLight = lightData[key]
                 if dynamicLight? then light = clampColor(add(light, dynamicLight))
 
-                finalColor = multiply(baseColor, light)
-                lightColor = finalColor
-
                 entityList = @entities[key]
                 if not @visible[key]?
                     entityList = (e for e in (entityList or []) when e.seeInFog)
@@ -519,11 +549,11 @@ class Level
                 bg = null
                 opts = undefined
                 if entityList?.length
+                    finalColor = light
                     topEntity = entityList[entityList.length-1]
                     character = topEntity.charFunc(x, y)
                     opts = if topEntity.drawOpts then topEntity.drawOpts() else undefined
-                    entityColor = topEntity.color
-                    if entityColor?
+                    if (entityColor = topEntity.color)?
                         if typeof(entityColor) == 'string'
                             entityColor = ROT.Color.fromString(entityColor)
 
@@ -533,11 +563,13 @@ class Level
                             entityBgColor = ROT.Color.fromString(entityBgColor)
                         bg = entityBgColor
                 else
-                    character = cell.char
+                    finalColor = multiply(baseColor, light)
+                    character = @chars[key] or cell.character
                     bg = @bgs[key] or null
-                if bg then bg = ROT.Color.toRGB(multiply(bg, light))
 
-                @display.draw(screenX, screenY, character, ROT.Color.toRGB(finalColor), bg or null, opts)
+                if bg then bg = Color.toRGB(multiply(bg, light))
+
+                @display.draw(screenX, screenY, character, Color.toRGB(finalColor), bg or null, opts)
 
         #
         # render mirrors
@@ -545,62 +577,85 @@ class Level
         maxwidth = @display._options.width
         maxheight = @display._options.height
 
+        @debug = {}
         if RENDER_MIRRORS
-            for mirrorType, delta of mirrors
-                cellList = @cellsByName[mirrorType] or []
-                for key in cellList
-                    # skip mirror if not lit
-                    if not @visible[key] then continue
+            assert(@mirrorSeers.length == 1) # TODO: fixme
+            e = @mirrorSeers[0]
+            [ex, ey] = [e.getX(), e.getY()]
 
+            cellList = @cellsByName['fourmirror'] or []
+            for key in cellList
+                # skip mirror if not lit
+                if not @visible[key] then continue
+                if not (mirrorchar = @chars[key]) then continue
+                [mirrorx, mirrory] = COORDS(key)
+
+                found = undefined
+                for dir in (BoxDrawing.mirrorPlanes[mirrorchar] or [])
+                    signx = Math.sign(ex - mirrorx)
+                    signy = Math.sign(ey - mirrory)
+                    gx = if signx and signx == dir[0] then signx else 0
+                    gy = if signy and signy == dir[1] then signy else 0
+                    if gx or gy
+                        neighborKey = KEY(mirrorx+gx, mirrory+gy)
+                        neighbor = @cells[neighborKey]
+                        if neighbor and neighbor.lightPasses
+                            found = dir
+                        break
+
+                if not found
+                    continue
+
+                xDelta = -found[0]
+                yDelta = -found[1]
+                rayXDelta = xDelta
+                rayYDelta = yDelta
+
+                if not xDelta and not yDelta then continue
+
+                dx = 0
+                dy = 0
+                rayX = 0
+                rayY = 0
+
+                while true
+                    dx += xDelta
+                    dy += yDelta
+                    rayX += rayXDelta
+                    rayY += rayYDelta
+
+                    cellKey = (mirrorx - rayX) + ',' + (mirrory - rayY)
+                    if not @cells[cellKey] then break
+
+                    screenKey = @camera.getScreenKey(mirrorx - rayX, mirrory - rayY)
+                    args = @display._data[screenKey]
+                    if not args? then break
+
+                    [drawx, drawy] = @camera.getScreenCoords(mirrorx + dx, mirrory + dy)
+                    if drawx >= @camera.width or drawy >= @camera.height or drawx < 0 or drawy < 0
+                        break
+
+                    args = args.slice()
+                    args[0] = drawx
+                    args[1] = drawy
+
+                    cell = @cells[@camera.getWorldKey(x, y)]
+                    @display.draw(args...)
+
+                    planes = {}
+                    for dir in (BoxDrawing.mirrorPlanes[@chars[cellKey]] or [])
+                        planes[dir[0]+','+dir[1]] = true
+                    if (rayXDelta < 0 and planes['-1,0']) or (rayXDelta > 0 and planes['1,0'])
+                        rayXDelta = -rayXDelta
+                    if (rayYDelta < 0 and planes['0,-1']) or (rayYDelta > 0 and planes['0,1'])
+                        rayYDelta = -rayYDelta
+
+            if DRAW_DEBUG
+                for key, ch of @debug
                     [mirrorx, mirrory] = COORDS(key)
-
-                    xDelta = delta.dx
-                    yDelta = delta.dy
-                    rayXDelta = xDelta
-                    rayYDelta = yDelta
-
-                    # skip mirror if player isn't beyond its plane
-                    planeBreak = false
-                    for e in @mirrorSeers
-                        if (xDelta and Math.sign(e.getX() - mirrorx) == xDelta) or
-                           (yDelta and Math.sign(e.getY() - mirrory) == yDelta)
-                            planeBreak = true
-                            break
-                    if planeBreak
-                        continue
-
-                    dx = 0
-                    dy = 0
-                    rayX = 0
-                    rayY = 0
-            
-                    while true
-                        dx += xDelta
-                        dy += yDelta
-                        rayX += rayXDelta
-                        rayY += rayYDelta
-
-                        cellKey = (mirrorx - rayX) + ',' + (mirrory - rayY)
-                        if not @cells[cellKey] then break
-
-                        screenKey = @camera.getScreenKey(mirrorx - rayX, mirrory - rayY)
-                        args = @display._data[screenKey]
-                        if not args? then break
-
-                        [drawx, drawy] = @camera.getScreenCoords(mirrorx + dx, mirrory + dy)
-                        if drawx >= @camera.width or drawy >= @camera.height or drawx < 0 or drawy < 0
-                            break
-                    
-                        [x, y, ch, fg, bg] = args
-                        cell = @cells[@camera.getWorldKey(x, y)]
-                        @display.draw(drawx, drawy, ch, fg, bg)
-
-                        if (rayXDelta < 0 and cell == cells.rightmirror) or 
-                           (rayXDelta > 0 and cell == cells.leftmirror)
-                            rayXDelta = -rayXDelta
-                        if (rayYDelta < 0 and cell == cells.downmirror) or
-                           (rayYDelta > 0 and cell == cells.upmirror)
-                            rayYDelta = -rayYDelta
+                    [watx, waty] = @camera.getScreenCoords(mirrorx, mirrory)
+                    if (ch = @debug[key])?
+                        @display.draw(watx, waty, ch)
 
         undefined
 

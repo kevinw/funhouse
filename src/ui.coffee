@@ -72,7 +72,7 @@ entitySpan = (entity) ->
     charSpan = document.createElement('span')
     if entity.color
         charSpan.setAttribute('style', 'color: %s;'.format(entity.color))
-    charSpan.textContent = entity.char;
+    charSpan.textContent = entity.charFunc(1, 1); # TODO: no
     charSpan
 
 window.updateLegendNodeForEntity = (node, entity) ->
@@ -123,10 +123,12 @@ sortedBucketed = (items) ->
     byClass = {}
     bucketed = []
     for item in items
-        if not byClass[item.constructor.name]?
-            bucketed.push(byClass[item.constructor.name] = [])
+        assert(item.itemSort)
+        key = item.itemSort
+        if not byClass[key]?
+            bucketed.push(byClass[key] = [])
 
-        classItems = byClass[item.constructor.name]
+        classItems = byClass[key]
         classItems.push(item)
 
     bucketed

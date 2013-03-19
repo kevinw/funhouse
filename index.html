@@ -2,7 +2,7 @@
 <html>
     <head>
         <title>FunhouseRL</title>
-        <link href='http://fonts.googleapis.com/css?family=Inconsolata' rel='stylesheet' type='text/css'>
+        <link href="res/unicodetiles.css" rel="stylesheet" type="text/css" />
         <script src="lib/rot.js/rot.js"></script>
         <script src="lib/zepto.min.js"></script>
 
@@ -11,7 +11,6 @@
                 background: black;
                 color: white;
                 font-size: 12px;
-                font-family: Monaco, Consolas, Inconsolata, monospace;
             }
             #wrapper {
                width: 1000px;
@@ -118,17 +117,22 @@
 
             #mapDebug { position: absolute; bottom: 0; right: 0; }
         </style>
-    
-        
-        <script src="src/js.js" charset="UTF-8"></script>
-        <script src="src/util.js" charset="UTF-8"></script>
-        <script src="src/cells.js" charset="UTF-8"></script>
-        <script src="src/player.js" charset="UTF-8"></script>
-        <script src="src/level.js" charset="UTF-8"></script>
-        <script src="src/ui.js" charset="UTF-8"></script>
-        <script src="src/game.js" charset="UTF-8"></script>
+
+        <script src="gen/funhouse-min.js" charset="UTF-8"></script>
+        <!--
+            <script src="src/js.js" charset="UTF-8"></script>
+            <script src="src/util.js" charset="UTF-8"></script>
+            <script src="src/boxdrawing.js" charset="UTF-8"></script>
+            <script src="src/config.js" charset="UTF-8"></script>
+            <script src="src/cells.js" charset="UTF-8"></script>
+            <script src="src/player.js" charset="UTF-8"></script>
+            <script src="src/level.js" charset="UTF-8"></script>
+            <script src="src/ui.js" charset="UTF-8"></script>
+            <script src="src/game.js" charset="UTF-8"></script>
+            <script src="src/gameinit.js" charset="UTF-8"></script>
+        -->
     </head>
-    <body onload="game=new Game()">
+    <body>
         <div id="wrapper">
             <div id="legend">
             </div>

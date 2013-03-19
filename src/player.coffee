@@ -1,12 +1,10 @@
-'use strict'
-
 GOD_MODE = false
 ALLOW_LEVEL_JUMPING = false
 
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
 
-xpForNextLevel = (level) -> 
+xpForNextLevel = (level) ->
     Math.ceil(Math.pow(1.6, level) * 3) - 3
 
 idleStatuses = [
@@ -17,23 +15,6 @@ idleStatuses = [
 
 enemyStates =
     hunting: 'Hunting'
-
-window.constants =
-    lightPasses: 1
-    playerSightRadius: 20
-    playerSpeed: 100
-    hahaSpeedMultipler: 2
-    sprintMeleeMultiplier: 2
-    sprintDistance: 3
-    sprintStepBreathCost: 10
-    meleeBreathCost: 6
-    breathRecoveryStep: 1
-    idleStatusChance: .001
-
-    selfEsteemColor: '#0000aa'
-
-    imaginationColor: '#880055'
-    mirrorImaginationCost: 10
 
 controls = {
     # numpad
@@ -128,7 +109,7 @@ class Entity extends EventDispatcher
 
         @level.addEntity(this, @_x, @_y)
 
-    charFunc: (x, y) -> @char
+    charFunc: (x, y) -> @character
 
     triggerEffect: (name, value) ->
         @effect ?= {}
@@ -220,7 +201,7 @@ class Door extends Entity
         delete @level.closedDoors[@getKey()]
 
     hideFromLegend: true
-    char: '+'
+    character: '+'
 window.Door = Door
 
 class Item extends Entity
@@ -237,9 +218,11 @@ class Pickup extends Item
         entity.pickup?(this)
 
 class Food extends Pickup
+    itemSort: 'food'
     statusDesc: -> 'food'
+    legendDesc: 'Food'
     inventoryDesc: -> 'Some food. Boosts your self-esteem.'
-    char: '%'
+    character: '%'
     color: 'red'
     eat: usefunc
         label: 'eat'
@@ -250,8 +233,10 @@ class Food extends Pickup
 window.Food = Food
 
 class WhelkShell extends Pickup
+    itemSort: 'whelk'
+    legendDesc: 'Whelk Shell'
     statusDesc: -> 'whelk shell'
-    char: 'W'
+    character: 'W'
     inventoryDesc: ->
         'A sprial shell, the kind you put up to your ear to hear the ocean.'
     constructor: ->
@@ -278,12 +263,12 @@ class Stairs extends Entity
         entity.climbStairs?(this)
 
 class DownStairs extends Stairs
-    char: '>'
+    character: '>'
     delta: 1
     legendDesc: 'Stairs Down'
 
 class UpStairs extends Stairs
-    char: '<'
+    character: '<'
     delta: -1
     legendDesc: 'Stairs Up'
 
@@ -317,7 +302,7 @@ class Player extends Entity
     toString: -> '<Player>'
     color: '#ff0'
     statusDesc: -> 'you'
-    char: '@'
+    character: '@'
 
     legendDesc: 'You'
     legendProps: [{type: 'bar', meter: 'health', label: 'Self-esteem', color: constants.selfEsteemColor},
@@ -341,7 +326,7 @@ class Player extends Entity
         @_updateXP()
 
         super
-        
+
     awardXp: (info) ->
         if typeof(info.xp) != 'number'
             console.log("ERROR: expected info.xp to be a number, got " + typeof(info.xp))
@@ -463,17 +448,22 @@ class Player extends Entity
                     skipBumpMsg = true
             if not skipBumpMsg and moveInfo.bump?
                 @level.addStatus(moveInfo.bump)
-        else if (entities = @level.hostilesAtCell(x, y)).length
-            for entity in entities
-                @melee(entity, opts)
-                break
-        else
-            @level.moveEntity(this, x, y)
-            @breath.add(constants.breathRecoveryStep)
-            if ROT.RNG.getUniform() < constants.idleStatusChance
-                @showIdleStatus()
+            return
 
-            return true
+        else if (entities = @level.entitiesAtCell(x, y)).length
+            for entity in entities
+                if entity.hostile
+                    @melee(entity, opts)
+                    return
+                else if entity.preBump?(this, opts) == BUMP_CANCEL_MOVE
+                    return
+
+        @level.moveEntity(this, x, y)
+        @breath.add(constants.breathRecoveryStep)
+        if ROT.RNG.getUniform() < constants.idleStatusChance
+            @showIdleStatus()
+
+        return true
 
     showIdleStatus: ->
         if idleStatuses.length
@@ -527,7 +517,7 @@ class Bullet extends Entity
             @die()
 
 class HaBullet extends Bullet
-    char: '*'
+    character: '*'
     getSpeed: -> constants.playerSpeed * constants.hahaSpeedMultipler
     drawOpts: ->
         jiggle: [ROT.RNG.getUniform() * 4 - 2, ROT.RNG.getUniform() * 4 - 2]
@@ -567,10 +557,21 @@ class Beam extends Attack
             @fire(entityInfo.closestCardinalTo)
             return true
 
+class NPC extends Entity
+    character: '☹'
+    legendDesc: 'Man on Stool'
+    preBump: (e) ->
+        if e.group == 'players'
+            e.level.addStatus('What are you doing in here alone?')
+            return BUMP_CANCEL_MOVE
+
+
+window.NPC = NPC
+
 class Monster extends Entity
     needsThe: true
     hostile: true
-    char: "C"
+    character: "C"
     sightRadius: 15
     legendDesc: 'Evil Clown'
     legendProps: [{type: 'bar', meter: 'health', label: 'Health'}]

@@ -1,7 +1,4 @@
-'use strict'
-
 MAP_DEBUG = false
-SHOW_SEED_URL = false
 
 fades = [
     66/255,
@@ -36,17 +33,7 @@ class StatusMessages
             node.setAttribute('style', 'opacity: %s;'.format(fade))
 
 class Game
-    display: null
-    map: {}
-    engine: null
-    player: null
-    pedro: null
-    ananas: null
-    actors: []
-
-    constructor: ->
-        setupRandom()
-
+    constructor: ({@seed}) ->
         @turn = 0
 
         @displaywidth = 50
@@ -62,10 +49,8 @@ class Game
             @debugDisplayInfo = $("<pre>")
             mapDebug.append(@debugDisplayInfo)
 
-            @debugLevels = {}
-
         @display = new ROT.Display {
-            fontFamily: "Monaco, Consolas, Inconsolata, monospace"
+            fontFamily: "DejaVuSansMono, DejaVu Sans Mono, Monaco, Consolas, Inconsolata, monospace"
             fontSize: 21
             spacing: 1.1
             width: @displaywidth
@@ -86,6 +71,9 @@ class Game
 
         @engine.start()
 
+    url: ->
+        window.location.origin + "/?seed=#{@seed}"
+
     switchLevel: (delta, opts) ->
         @levelDepth += delta
         @level = @levels[@levelDepth]
@@ -98,10 +86,6 @@ class Game
             opts.addActor = (actor) => @engine.addActor(actor)
             opts.removeActor = (actor) => @engine.removeActor(actor)
             opts.depth = @levelDepth
-            if @debugDisplay?
-                @debugLevels[@levelDepth] = []
-                opts.debugCreate = (x, y, val) =>
-                    @debugLevels[@levelDepth].push([x, y, val])
 
             @level = new Level(this, opts)
             @levels[@levelDepth] = @level
@@ -115,13 +99,10 @@ class Game
                 height: @level.height
             )
 
-            #for [x, y, val] in @debugLevels[@levelDepth]
-                #@debugDisplay.DEBUG(x, y, val)
             for key, cell of @level.cells
                 [x, y] = COORDS(key)
                 if cell and cell.blocksMovement == false
                     @debugDisplay.DEBUG(x, y, 1)
-
 
             @debugDisplayInfo.text("""Level is #{@level.width}x#{@level.height} at depth #{@levelDepth} with #{@level.roomInfos.length} rooms
                                         dugPercentage: #{@level.roomDugPercentage}
@@ -156,11 +137,3 @@ class Game
         @engine.unlock()
 
 window.Game = Game
-
-setupRandom = ->
-    if (seed = queryInt('seed'))?
-        ROT.RNG.setSeed(seed)
-
-    if SHOW_SEED_URL
-        url = "http://localhost/?seed=" + ROT.RNG.getSeed()
-        $("#debug").append($("<a>").attr('href', url).text(url))
