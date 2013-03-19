@@ -11,6 +11,7 @@ hashFile = (filename) ->
 sources = [
     'js.coffee'
     'util.coffee'
+    'boxdrawing.coffee'
     'config.coffee'
     'cells.coffee'
     'player.coffee'

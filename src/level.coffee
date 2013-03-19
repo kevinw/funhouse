@@ -255,9 +255,8 @@ class Level
             neighbors = @getNeighbors(x, y)
 
             desc = (names[n?.name] or '_' for n in neighbors).join('')
-            char = BoxDrawing.symbolLookups[desc]
-            if char?
-                @chars[key] = char
+            if (character = BoxDrawing.symbolLookups[desc])?
+                @chars[key] = character
 
     _generateRoomMaze: (roomInfo, opts) ->
         rect = roomInfo.rect
