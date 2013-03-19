@@ -1,4 +1,17 @@
-window.symbols =
+FOURDIRS = ROT.DIRS['4']
+
+window.DIRS =
+    UP: FOURDIRS[0]
+    RIGHT: FOURDIRS[1]
+    DOWN: FOURDIRS[2]
+    LEFT: FOURDIRS[3]
+
+window.DIRNAME = (d) ->
+    for name, [dx, dy] of DIRS
+        if d[0] == dx and d[1] == dy
+            return name
+
+symbols =
   #  'LURD'      _=blank r=regular b=bold d=double
   ' ':'____',
   '╴':'r___', '╸':'b___',
@@ -30,3 +43,28 @@ window.symbols =
   '╨':'rdr_', '╞':'_rdr', '╥':'r_rd', '╡':'dr_r',
   '╧':'drd_', '╟':'_drd', '╤':'d_dr', '╢':'rd_d',
   '╬':'dddd', '╪':'drdr', '╫':'rdrd'
+
+symbolLookups = {}
+for key, val of symbols
+    # remap to ROT.DIRS
+    val = val.substr(1) + val.substr(0, 1)
+
+    assert(symbolLookups[val] is undefined)
+    symbolLookups[val] = key
+
+extend(symbolLookups, {
+    'd___': '║'
+    '_d__': '═'
+    '__d_': '║'
+    '___d': '═'
+})
+
+mirrorPlanes =
+    '═': [DIRS.UP, DIRS.DOWN]
+    '║': [DIRS.LEFT, DIRS.RIGHT]
+
+
+window.BoxDrawing =
+    symbols: symbols
+    symbolLookups: symbolLookups
+    mirrorPlanes: mirrorPlanes

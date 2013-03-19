@@ -13,6 +13,7 @@ cells =
     floor:
         #character: '╳'
         character: '·'
+        fg: ['#666', '#444', '#555']
         reflectivity: 0.3
         lightPasses: true
         blocksMovement: false

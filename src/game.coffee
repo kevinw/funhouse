@@ -50,7 +50,7 @@ class Game
             mapDebug.append(@debugDisplayInfo)
 
         @display = new ROT.Display {
-            fontFamily: "Monaco, Consolas, Inconsolata, monospace"
+            fontFamily: "DejaVuSansMono, DejaVu Sans Mono, Monaco, Consolas, Inconsolata, monospace"
             fontSize: 21
             spacing: 1.1
             width: @displaywidth
