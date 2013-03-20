@@ -406,8 +406,6 @@ class Player extends Entity
 
         return if not action?
 
-        console.log(action)
-
         e.preventDefault()
 
         if (handler = @['on_' + action])
