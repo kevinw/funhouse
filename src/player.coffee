@@ -7,6 +7,12 @@ rot_dirs[dir] = i for dir, i in rot_dirs
 xpForNextLevel = (level) ->
     Math.ceil(Math.pow(1.6, level) * 3) - 3
 
+maxHealthForLevel = (level) ->
+    100 + level*10
+
+maxBreathForLevel = (breath) ->
+    100 + breath*20
+
 idleStatuses = [
     'You yawn nervously.'
     'You cringe as loud recorded laughter booms from a hidden speaker.'
@@ -76,6 +82,9 @@ class Meter
         @value = Math.min(@max or 0, @value + val)
         if @value < 0 then @value = 0
         return @value
+
+    fill: ->
+        @value = @max
 
     trySubtract: (val) ->
         if @value >= val
@@ -317,8 +326,8 @@ class Player extends Entity
             color: [200, 200, 200]
         }
 
-        @health = @makeMeter('health', {max: 100})
-        @breath = @makeMeter('breath', {max: 100})
+        @health = @makeMeter('health', {max: maxHealthForLevel(1)})
+        @breath = @makeMeter('breath', {max: maxBreathForLevel(1)})
         @imagination = @makeMeter('imagination', {value: 20, max: 100})
 
         @xp = 0
@@ -355,6 +364,7 @@ class Player extends Entity
 
     didLevelUp: ->
         @level.addStatus("You're now at level #{@xplevel}.")
+        @breath.fill()
 
     die: ->
         if GOD_MODE then return
@@ -389,7 +399,14 @@ class Player extends Entity
 
         if e.altKey then return
 
-        return if not (action = keyMap[code])?
+        if code == 191 and e.shiftKey # HACK
+            action = 'show_help'
+        else
+            action = keyMap[code]
+
+        return if not action?
+
+        console.log(action)
 
         e.preventDefault()
 
@@ -415,6 +432,9 @@ class Player extends Entity
 
     on_show_inventory: (after) ->
         showInventory(@inventory, after)
+
+    on_show_help: (after) ->
+        showHelp(after)
 
     on_nextLevel: (after) ->
         @level.switchLevel(1)

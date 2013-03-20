@@ -67,7 +67,7 @@ class Game
 
         @addStatus('You enter the funhouse.')
         @addStatus('The exit slams shut behind you.')
-        @addStatus('Good luck!')
+        @addStatus('Press &lt;?&gt; for help at any time.')
 
         @engine.start()
 

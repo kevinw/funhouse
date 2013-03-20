@@ -2,6 +2,43 @@
 
 $ = Zepto
 
+helpText = '''h e  l   p 
+ ~ ~ ~ ~ ~ ~
+
+(general)
+
+[ ? ]     - show this help dialog
+
+[ i ]     - bring up your inventory
+[ shift ] - hold to sprint while moving
+
+
+(ambulation)
+
+             [ up ↑ ]
+[ left ← ][ down ↓ ][ right → ]
+
+[ home ↖ ][   page up ↗ ]
+[  end ↙ ][ page down ↘ ]
+
+[ y ↖ ][ u ↗ ]
+   [ h ← ][ j ↓ ][ k ↑ ][ l → ]
+[ b ↙ ][ n ↘ ]
+
+
+[ ESC ] - exit this dialog
+'''
+_transformedHelpText = null
+_getHelpText = ->
+    if not _transformedHelpText
+        _transformedHelpText = helpText.replace /[↖↑↗←↙↓↘→]/g, (match, offset) ->
+            "<span class='big'>#{match}</span>"
+        _transformedHelpText = _transformedHelpText.replace /[\[\]]/g, (match) ->
+            "<span class='dim'>#{match}</span>"
+    
+    _transformedHelpText
+
+
 uiConstants =
     shakeEffectDuration: 400
 
@@ -132,6 +169,36 @@ sortedBucketed = (items) ->
         classItems.push(item)
 
     bucketed
+
+showModal = (div, after) ->
+    div.addClass('dialog')
+    $("#game").append(div)
+
+    promise = {}
+
+    onKey = (e) ->
+        keyCode = e.keyCode
+        if keyCode == ROT.VK_ESCAPE
+            dismiss()
+        else
+            return
+        e.preventDefault()
+
+    dismiss = (args...) ->
+        window.removeEventListener('keydown')
+        div.remove()
+        after(args...) if after
+
+    window.addEventListener('keydown', onKey)
+
+window.showHelp = (after) ->
+    helpDiv = $("<div>")
+        .attr('id', 'help')
+        .addClass('dialog')
+
+    helpDiv.html(_getHelpText())
+
+    showModal(helpDiv, after)
 
 window.showInventory = (inventory, after) ->
     invnode = $("<div>")
