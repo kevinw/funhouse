@@ -39,6 +39,7 @@ class Level
         @chars = {}
         @debug = {}
         @fog = {}
+        @colors = {}
 
         @cellsByName = {}
         @entities = {}
@@ -88,7 +89,7 @@ class Level
     switchLevel: (delta) ->
         @game.switchLevel(delta)
 
-    findFreeCell: ({type, room} = {}) ->
+    findFreeCell: ({type, room, radius} = {}) ->
         type ?= 'floor'
 
         assert(typeof(type) == 'string')
@@ -104,6 +105,15 @@ class Level
 
             if roomRect?
                 if not roomRect.containsXY(x, y)
+                    continue
+
+            if radius?
+                needContinue = false
+                for cell in @getNeighbors(x, y, {topology: 8})
+                    if not cell or cell.blocksMovement isnt false
+                        needContinue = true
+                        break
+                if needContinue
                     continue
 
             assert(@cells[key] == cells[type])
@@ -221,9 +231,13 @@ class Level
                 ]
 
                 walls = walls.randomize()
-                for n in [0..Math.floor(ROT.RNG.getUniform() * walls.length)]
+                madeMirror = false
+                numMirrors = Math.floor(ROT.RNG.getUniform() * walls.length)
+                for n in [0..numMirrors]
                     walls[n]()
-
+                    madeMirror = true
+                if madeMirror
+                    mirrorRoom.numMirrors = numMirrors
 
         # place walls
         if true
@@ -239,9 +253,9 @@ class Level
 
         return digger
 
-    getNeighbors: (x, y) ->
+    getNeighbors: (x, y, {topology} = {topology: 4}) ->
         neighbors = []
-        for [dx, dy], dir in ROT.DIRS['4']
+        for [dx, dy], dir in ROT.DIRS[topology.toString()]
             neighbors.push(@cells[(x+dx)+','+(y+dy)])
         neighbors
 
@@ -306,6 +320,11 @@ class Level
     _placeEntities: (mapInfo, opts) ->
         rooms = mapInfo.getRooms()
 
+        roomForXY = (x, y) ->
+            for room in rooms
+                if Rect.fromRoom(room).containsXY(x, y)
+                    return room
+
         # place down stairs
         exitRoom = rooms.random()
         exitRoomRect = Rect.fromRoom(exitRoom)
@@ -354,14 +373,25 @@ class Level
                         new Door(this, x, y)
 
         # place down monsters
+        numInvisible = numInvisibleMonsters(@depth)
+
         for i in [0..opts.numMonsters-1]
-            [x, y] = @findFreeCell()
-            if entranceRoom != exitRoom
-                failsafe = 0
-                while entranceRoomRect.containsXY(x, y)
-                    assert((failsafe += 1) < 100)
-                    [x, y] = @findFreeCell()
-            new Monster(this, x, y)
+            monsterOpts = {}
+            if numInvisible > 0
+                numInvisible -= 1
+                mirroredRooms = (r for r in rooms when r.numMirrors)
+                [x, y] = @findFreeCell {room: mirroredRooms.random()}
+                monsterOpts.visible = false
+                monsterOpts.mirrorVisible = true
+            else
+                [x, y] = @findFreeCell()
+                if entranceRoom != exitRoom
+                    failsafe = 0
+                    while entranceRoomRect.containsXY(x, y)
+                        assert((failsafe += 1) < 100)
+                        [x, y] = @findFreeCell()
+
+            new Monster(this, x, y, monsterOpts)
 
         # place food
         for i in [0..opts.numFood-1]
@@ -373,7 +403,7 @@ class Level
             [x, y] = @findFreeCell()
             new WhelkShell(this, x, y)
 
-        [x, y] = @findFreeCell()
+        [x, y] = @findFreeCell {radius: 1}
         new NPC(this, x, y)
 
     entryPosition: (delta) ->
@@ -542,9 +572,9 @@ class Level
                 dynamicLight = lightData[key]
                 if dynamicLight? then light = clampColor(add(light, dynamicLight))
 
-                entityList = @entities[key]
+                entityList = (e for e in (@entities[key] or []) when e.visible isnt false)
                 if not @visible[key]?
-                    entityList = (e for e in (entityList or []) when e.seeInFog)
+                    entityList = (e for e in entityList when e.seeInFog)
 
                 bg = null
                 opts = undefined
@@ -569,6 +599,7 @@ class Level
 
                 if bg then bg = Color.toRGB(multiply(bg, light))
 
+                @colors[key] = finalColor
                 @display.draw(screenX, screenY, character, Color.toRGB(finalColor), bg or null, opts)
 
         #
@@ -639,7 +670,24 @@ class Level
                     args[0] = drawx
                     args[1] = drawy
 
-                    cell = @cells[@camera.getWorldKey(x, y)]
+                    # TODO: remove this and reuse logic above
+                    if (entityList = (e for e in (@entities[cellKey] or []) when e.mirrorVisible)).length
+                        topEntity = entityList[entityList.length-1]
+                        [worldX, worldY] = @camera.getWorldCoords(rayX, rayY)
+                        character = topEntity.charFunc(rayX, rayY)
+                        if (entityColor = topEntity.color)?
+                            if typeof(entityColor) == 'string'
+                                entityColor = ROT.Color.fromString(entityColor)
+                        if (entityBgColor = topEntity.bg)?
+                            if typeof(entityBgColor) == 'string'
+                                entityBgColor = ROT.Color.fromString(entityBgColor)
+                            bg = entityBgColor
+                        args[2] = character
+                        if entityColor?
+                            args[3] = Color.toRGB(entityColor)
+                        if bg?
+                            args[4] = bg
+
                     @display.draw(args...)
 
                     planes = {}
@@ -668,13 +716,16 @@ class Camera
         @getRect()
 
     getScreenCoords: (x, y) ->
-        return [x-@rect.x1, y-@rect.y1]
+        [x-@rect.x1, y-@rect.y1]
 
     getScreenKey: (x, y) ->
-        return (x-@rect.x1)+','+(y-@rect.y1)
+        (x-@rect.x1)+','+(y-@rect.y1)
+
+    getWorldCoords: (x, y) ->
+        [x+@rect.x1, y+@rect.y1]
 
     getWorldKey: (x, y) ->
-        return (x+@rect.x1)+','+(y+@rect.y1)
+        (x+@rect.x1)+','+(y+@rect.y1)
 
     getRect: ->
         [x, y] = [@entity.getX() - Math.floor(@width/2), @entity.getY() - Math.floor(@height/2)]

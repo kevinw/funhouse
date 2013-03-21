@@ -7,7 +7,7 @@ window.constants =
     sprintDistance: 3
     sprintStepBreathCost: 10
     meleeBreathCost: 6
-    breathRecoveryStep: 1
+    breathRecoveryStep: 2
     idleStatusChance: .001
 
     selfEsteemColor: '#0000aa'
