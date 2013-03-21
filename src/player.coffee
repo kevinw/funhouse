@@ -1,8 +1,13 @@
 GOD_MODE = false
-ALLOW_LEVEL_JUMPING = false
+ALLOW_LEVEL_JUMPING = true
 
 rot_dirs = ['up', 'up_right', 'right', 'down_right', 'down', 'down_left', 'left', 'up_left']
 rot_dirs[dir] = i for dir, i in rot_dirs
+
+
+window.numInvisibleMonsters = (level) -> level-1
+
+
 
 xpForNextLevel = (level) ->
     Math.ceil(Math.pow(1.6, level) * 3) - 3
@@ -443,7 +448,7 @@ class Player extends Entity
             @level.switchLevel(-1)
         after(true)
 
-    melee: (entity) ->
+    melee: (entity, opts) ->
         amount = 6
 
         if opts?.sprinting
@@ -458,6 +463,9 @@ class Player extends Entity
                 verb: 'punched'
 
     tryMoveTo: (x, y, opts) ->
+        recoverBreath = =>
+            @breath.add(constants.breathRecoveryStep)
+
         moveInfo = @level.canMoveTo(x, y)
         if not moveInfo.canMove
             skipBumpMsg = false
@@ -466,6 +474,7 @@ class Player extends Entity
                     skipBumpMsg = true
             if not skipBumpMsg and moveInfo.bump?
                 @level.addStatus(moveInfo.bump)
+            recoverBreath()
             return
 
         else if (entities = @level.entitiesAtCell(x, y)).length
@@ -477,7 +486,7 @@ class Player extends Entity
                     return
 
         @level.moveEntity(this, x, y)
-        @breath.add(constants.breathRecoveryStep)
+        recoverBreath()
         if ROT.RNG.getUniform() < constants.idleStatusChance
             @showIdleStatus()
 
@@ -601,11 +610,16 @@ class Monster extends Entity
             xp: @xpValue()
         super
 
-    constructor: ->
+    constructor: (level, x, y, opts) ->
         super
         @attacks = [new Beam(this)]
-
         @health = @makeMeter('health', {max: 20})
+        @applyOpts(opts)
+
+    applyOpts: (opts) ->
+        if opts?
+            for k, v of opts
+                @[k] = v
 
     attacks: {
         scratch: {
