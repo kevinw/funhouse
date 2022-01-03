@@ -1,12 +1,14 @@
 # FunhouseRL
 
-You're a boy lost in a funhouse. One possibly of your own construction. Ontological peril awaits you. Also clowns.
+![Screenshot](/meta/screenshot.jpg)
+
+You're lost in a funhouse. One possibly of your own construction. Ontological peril awaits you. Also clowns.
 
 Made for the [7DRL Challenge 2013](http://7drl.org/).
 
 ## Play Online
 
-<strong>[Play in your browser here](http://kevinw.github.com/funhouse)</strong>
+<strong>[Play in your browser here](https://kev.town/games/funhouse)</strong>
 
 ## How to Play
 
