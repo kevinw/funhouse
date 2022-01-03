@@ -357,7 +357,7 @@ class Level
                 roomsByDoorCount[doorCount] ?= []
                 roomsByDoorCount[doorCount].push(room)
 
-        iswall = (x, y) ->
+        iswall = (x, y) =>
             cell = @cells[KEY(x, y)]
             not cell or not (cell.blocksMovement is false)
 

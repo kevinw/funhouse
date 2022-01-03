@@ -113,6 +113,7 @@ class EventDispatcher
 
 class Entity extends EventDispatcher
     constructor: (@level, @_x, @_y) ->
+        super arguments...
         assert(@level)
 
         assert(typeof(@_x) == 'number' and not isNaN(@_x))
@@ -207,7 +208,7 @@ class Door extends Entity
     seeInFog: true
     bg: '#6e2311'
     constructor: ->
-        super
+        super arguments...
         @close()
     close: ->
         @level.closedDoors[@getKey()] = true
@@ -254,7 +255,7 @@ class WhelkShell extends Pickup
     inventoryDesc: ->
         'A sprial shell, the kind you put up to your ear to hear the ocean.'
     constructor: ->
-        super
+        super arguments...
         @imaginationValue = Math.floor(ROT.RNG.getNormal(20, 5))
     listen: usefunc
         label: 'listen'
@@ -325,6 +326,8 @@ class Player extends Entity
                   {type: 'bar', meter: 'xpMeter', label: ((entity) -> 'Level ' + entity.xplevel), color: '#006633'}]
 
     constructor: ->
+        super arguments...
+
         @inventory = new Inventory(this)
 
         @light = {
@@ -339,7 +342,6 @@ class Player extends Entity
         @xplevel = 1
         @_updateXP()
 
-        super
 
     awardXp: (info) ->
         if typeof(info.xp) != 'number'
@@ -375,7 +377,7 @@ class Player extends Entity
         if GOD_MODE then return
         @level.addStatus('You died.')
         @level.lock()
-        super
+        super arguments...
 
     eatFood: (food) ->
         @health.add(35)
@@ -552,8 +554,8 @@ class HaBullet extends Bullet
     damageOpts: ->
         verb: 'laughed at'
     constructor: (level, x, y, @velocity, @sourceEntity) ->
+        super arguments...
         @origin = [x, y]
-        super
     charFunc: (x, y) ->
         if (x + y + @level.game.turn) % 2 is 0 then 'H' else 'A'
 
@@ -608,10 +610,10 @@ class Monster extends Entity
     die: ->
         @level.awardXp
             xp: @xpValue()
-        super
+        super arguments...
 
     constructor: (level, x, y, opts) ->
-        super
+        super arguments...
         @attacks = [new Beam(this)]
         @health = @makeMeter('health', {max: 20})
         @applyOpts(opts)

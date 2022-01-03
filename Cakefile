@@ -1,7 +1,7 @@
 source_dir = 'src'
 
 fs = require 'fs'
-{print} = require 'sys'
+{print} = require 'util'
 {spawn} = require 'child_process'
 {createHash} = require('crypto')
 
@@ -21,7 +21,6 @@ sources = [
     'gameinit.coffee'
 ]
 
-
 joined_file   = 'gen/funhouse.js'
 minified_file = 'gen/funhouse-min.js'
 
@@ -35,18 +34,18 @@ spawn_check = (callback, cmd, args) ->
         callback?() if code is 0
 
 build = (callback) ->
-  spawn_check callback, 'coffee', [
-      '--map',
-      '--join',
-      'gen/funhouse.js',
-      '--compile'
-  ].concat((source_dir + '/' + s) for s in sources)
+  command_line = 'cat '
+  for s in sources
+    command_line = command_line + " " + source_dir + "/" + s
+  command_line = command_line + " | coffee --compile --stdio > gen/funhouse.js"
+  spawn_check callback, 'bash', ['-c', command_line]
 
 minify = (callback) ->
     spawn_check callback, 'closure-compiler', [
         '--js', joined_file
         '--js_output_file', minified_file
     ]
+
 task 'build', "Build all-in-one #{joined_file} from sources", ->
   build()
 
