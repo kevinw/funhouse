@@ -185,7 +185,7 @@ showModal = (div, after) ->
         e.preventDefault()
 
     dismiss = (args...) ->
-        window.removeEventListener('keydown')
+        window.removeEventListener('keydown', onKey)
         div.remove()
         after(args...) if after
 
